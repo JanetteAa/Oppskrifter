@@ -8,7 +8,7 @@
 <script type="module">
   import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
   import { getFirestore, doc, getDoc, setDoc } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
-  import { getAuth, GoogleAuthProvider, signInWithPopup, signOut, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
+  import { getAuth, GoogleAuthProvider, signInWithRedirect, getRedirectResult, signOut, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
 
   const firebaseConfig = {
     apiKey: "AIzaSyCSZPHrDFJHFInbhVCeNfyrHFFQAz0-W_s",
@@ -29,8 +29,11 @@
   window._getDoc = getDoc;
 
   window.signInWithGoogle = async () => {
-    try { await signInWithPopup(auth, provider); } catch(e) { console.error(e); }
+    try { await signInWithRedirect(auth, provider); } catch(e) { console.error(e); }
   };
+
+  // Håndter redirect-resultat etter innlogging
+  getRedirectResult(auth).catch(e => console.warn('Redirect result feil', e));
   window.signOutUser = async () => {
     await signOut(auth);
     document.getElementById('loginScreen').style.display = 'flex';
