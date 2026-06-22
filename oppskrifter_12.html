@@ -8,7 +8,6 @@
 <script type="module">
   import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
   import { getFirestore, doc, getDoc, setDoc } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
-  import { getAuth, GoogleAuthProvider, signInWithRedirect, getRedirectResult, signOut, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
 
   const firebaseConfig = {
     apiKey: "AIzaSyCSZPHrDFJHFInbhVCeNfyrHFFQAz0-W_s",
@@ -22,53 +21,55 @@
 
   const app = initializeApp(firebaseConfig);
   const db = getFirestore(app);
-  const auth = getAuth(app);
-  const provider = new GoogleAuthProvider();
+  const DOC = doc(db, "app", "data");
 
+  window._db = db;
+  window._doc = DOC;
   window._setDoc = setDoc;
   window._getDoc = getDoc;
 
-  window.signInWithGoogle = async () => {
-    try { await signInWithRedirect(auth, provider); } catch(e) { console.error(e); }
+  async function loadFirebaseData() {
+    try {
+      const snap = await getDoc(DOC);
+      if (snap.exists()) {
+        const d = snap.data();
+        if (d.recipes) window._recipes = d.recipes;
+        if (d.weekPlan) window._weekPlan = d.weekPlan;
+        if (d.shoppingItems) window._shoppingItems = d.shoppingItems;
+        if (d.haveItems) window._haveItems = d.haveItems;
+        if (d.notes) window._notes = d.notes;
+        if (d.customIngredients) window._customIngredients = d.customIngredients;
+      }
+    } catch(e) { console.warn('Firebase last feilet', e); }
+  }
+
+  function showApp() {
+    document.getElementById('loginScreen').style.display = 'none';
+    document.getElementById('appContent').style.display = 'block';
+    window._firebaseReady = true;
+    window.dispatchEvent(new Event('firebase-ready'));
+  }
+
+  window.checkPin = async () => {
+    const PIN = '1234'; // ← endre til din PIN
+    const input = document.getElementById('pinInput').value;
+    if (input === PIN) {
+      sessionStorage.setItem('pin_ok', '1');
+      await loadFirebaseData();
+      showApp();
+    } else {
+      document.getElementById('pinError').style.display = 'block';
+      document.getElementById('pinInput').value = '';
+      document.getElementById('pinInput').focus();
+    }
   };
 
-  // Håndter redirect-resultat etter innlogging
-  getRedirectResult(auth).catch(e => console.warn('Redirect result feil', e));
-  window.signOutUser = async () => {
-    await signOut(auth);
-    document.getElementById('loginScreen').style.display = 'flex';
-    document.getElementById('appContent').style.display = 'none';
-  };
-
-  onAuthStateChanged(auth, async (user) => {
-    if (user) {
-      document.getElementById('loginScreen').style.display = 'none';
-      document.getElementById('appContent').style.display = 'block';
-      document.getElementById('userAvatar').textContent = user.displayName ? user.displayName[0].toUpperCase() : '?';
-      document.getElementById('userName').textContent = user.displayName || user.email;
-
-      const DOC = doc(db, "users", user.uid);
-      window._doc = DOC;
-      window._db = db;
-
-      try {
-        const snap = await getDoc(DOC);
-        if (snap.exists()) {
-          const d = snap.data();
-          if (d.recipes) { window._recipes = d.recipes; }
-          if (d.weekPlan) { window._weekPlan = d.weekPlan; }
-          if (d.shoppingItems) { window._shoppingItems = d.shoppingItems; }
-          if (d.haveItems) { window._haveItems = d.haveItems; }
-          if (d.notes) { window._notes = d.notes; }
-          if (d.customIngredients) { window._customIngredients = d.customIngredients; }
-        }
-      } catch(e) { console.warn('Firebase last feilet', e); }
-
-      window._firebaseReady = true;
-      window.dispatchEvent(new Event('firebase-ready'));
+  window.addEventListener('DOMContentLoaded', async () => {
+    if (sessionStorage.getItem('pin_ok') === '1') {
+      await loadFirebaseData();
+      showApp();
     } else {
       document.getElementById('loginScreen').style.display = 'flex';
-      document.getElementById('appContent').style.display = 'none';
     }
   });
 </script>
@@ -380,13 +381,16 @@ main { max-width: 1200px; margin: 0 auto; padding: 2rem; }
 <body>
 
 <!-- Innloggingsskjerm -->
-<div id="loginScreen" style="display:flex;position:fixed;inset:0;background:var(--bg);z-index:9999;align-items:center;justify-content:center;flex-direction:column;gap:1.5rem">
+<div id="loginScreen" style="display:none;position:fixed;inset:0;background:var(--bg);z-index:9999;align-items:center;justify-content:center;flex-direction:column;gap:1.5rem;padding:2rem">
   <div style="font-family:'DM Serif Display',serif;font-size:32px;color:var(--text)">mine <span style="color:var(--accent);font-style:italic">oppskrifter</span></div>
-  <p style="font-family:'DM Sans',sans-serif;font-size:14px;color:var(--muted);text-align:center;max-width:280px">Logg inn for å få tilgang til oppskriftene dine på alle enheter</p>
-  <button onclick="signInWithGoogle()" style="display:flex;align-items:center;gap:12px;background:white;border:1px solid var(--border);border-radius:10px;padding:12px 24px;font-family:'DM Sans',sans-serif;font-size:15px;font-weight:500;cursor:pointer;color:var(--text);box-shadow:0 2px 8px rgba(0,0,0,0.08)">
-    <svg width="20" height="20" viewBox="0 0 48 48"><path fill="#EA4335" d="M24 9.5c3.54 0 6.71 1.22 9.21 3.6l6.85-6.85C35.9 2.38 30.47 0 24 0 14.62 0 6.51 5.38 2.56 13.22l7.98 6.19C12.43 13.72 17.74 9.5 24 9.5z"/><path fill="#4285F4" d="M46.98 24.55c0-1.57-.15-3.09-.38-4.55H24v9.02h12.94c-.58 2.96-2.26 5.48-4.78 7.18l7.73 6c4.51-4.18 7.09-10.36 7.09-17.65z"/><path fill="#FBBC05" d="M10.53 28.59c-.48-1.45-.76-2.99-.76-4.59s.27-3.14.76-4.59l-7.98-6.19C.92 16.46 0 20.12 0 24c0 3.88.92 7.54 2.56 10.78l7.97-6.19z"/><path fill="#34A853" d="M24 48c6.48 0 11.93-2.13 15.89-5.81l-7.73-6c-2.15 1.45-4.92 2.3-8.16 2.3-6.26 0-11.57-4.22-13.47-9.91l-7.98 6.19C6.51 42.62 14.62 48 24 48z"/></svg>
-    Fortsett med Google
-  </button>
+  <p style="font-family:'DM Sans',sans-serif;font-size:14px;color:var(--muted);text-align:center;max-width:280px">Skriv inn PIN-koden for å få tilgang</p>
+  <div style="display:flex;flex-direction:column;gap:10px;width:100%;max-width:240px">
+    <input id="pinInput" type="password" inputmode="numeric" maxlength="8" placeholder="PIN-kode"
+      onkeydown="if(event.key==='Enter')checkPin()"
+      style="font-family:'DM Sans',sans-serif;font-size:20px;text-align:center;letter-spacing:6px;padding:14px;border:1px solid var(--border);border-radius:10px;background:white;color:var(--text);outline:none;width:100%">
+    <p id="pinError" style="display:none;color:#c0392b;font-family:'DM Sans',sans-serif;font-size:13px;text-align:center;margin:0">Feil PIN-kode, prøv igjen</p>
+    <button onclick="checkPin()" style="background:var(--accent);color:white;border:none;border-radius:10px;padding:14px;font-family:'DM Sans',sans-serif;font-size:15px;font-weight:500;cursor:pointer">Logg inn</button>
+  </div>
 </div>
 
 <!-- App-innhold (skjult til innlogging) -->
@@ -414,10 +418,6 @@ main { max-width: 1200px; margin: 0 auto; padding: 2rem; }
       </button>
     </div>
     <div style="display:flex;gap:8px;align-items:center">
-      <div style="display:flex;align-items:center;gap:8px;cursor:pointer" onclick="signOutUser()" title="Logg ut">
-        <div id="userAvatar" style="width:32px;height:32px;border-radius:50%;background:var(--accent);color:white;font-family:'DM Sans',sans-serif;font-size:14px;font-weight:500;display:flex;align-items:center;justify-content:center"></div>
-        <span id="userName" style="font-size:13px;color:var(--muted);display:none"></span>
-      </div>
       <div class="search-wrap" id="recipeSearch">
         <svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
         <input type="text" id="searchInput" placeholder="Søk..." oninput="renderRecipes()">
