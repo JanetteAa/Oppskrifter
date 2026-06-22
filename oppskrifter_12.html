@@ -1,0 +1,1563 @@
+<!DOCTYPE html>
+<html lang="no">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Mine oppskrifter</title>
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500&family=DM+Serif+Display:ital@0;1&display=swap" rel="stylesheet">
+<script type="module">
+  import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
+  import { getFirestore, doc, getDoc, setDoc, onSnapshot } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
+
+  const firebaseConfig = {
+    apiKey: "AIzaSyCSZPHrDFJHFInbhVCeNfyrHFFQAz0-W_s",
+    authDomain: "wplan-942b7.firebaseapp.com",
+    projectId: "wplan-942b7",
+    storageBucket: "wplan-942b7.firebasestorage.app",
+    messagingSenderId: "1075707100736",
+    appId: "1:1075707100736:web:d478dace53b5ed378429a5",
+    measurementId: "G-CMEKSHS7YN"
+  };
+
+  const app = initializeApp(firebaseConfig);
+  const db = getFirestore(app);
+  const DOC = doc(db, "app", "data");
+
+  // Gjør db tilgjengelig globalt
+  window._db = db;
+  window._doc = DOC;
+  window._setDoc = setDoc;
+  window._getDoc = getDoc;
+  window._onSnapshot = onSnapshot;
+
+  // Last data fra Firebase når siden er klar
+  window.addEventListener('DOMContentLoaded', async () => {
+    try {
+      const snap = await getDoc(DOC);
+      if (snap.exists()) {
+        const d = snap.data();
+        if (d.recipes) { window._recipes = d.recipes; }
+        if (d.weekPlan) { window._weekPlan = d.weekPlan; }
+        if (d.shoppingItems) { window._shoppingItems = d.shoppingItems; }
+        if (d.haveItems) { window._haveItems = d.haveItems; }
+        if (d.notes) { window._notes = d.notes; }
+        if (d.customIngredients) { window._customIngredients = d.customIngredients; }
+      }
+    } catch(e) { console.warn('Firebase last feilet, bruker lokale data', e); }
+    window._firebaseReady = true;
+    window.dispatchEvent(new Event('firebase-ready'));
+  });
+</script>
+<style>
+:root {
+  --bg: #F7F6F2;
+  --surface: #FFFFFF;
+  --border: #E8E6DF;
+  --text: #1A1916;
+  --muted: #8A8880;
+  --accent: #2D6A4F;
+  --purple-bg: #EEEDFE; --purple-text: #3C3489;
+  --green-bg: #E1F5EE; --green-text: #085041;
+  --blue-bg: #E6F1FB; --blue-text: #0C447C;
+  --amber-bg: #FAEEDA; --amber-text: #633806;
+}
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body { font-family: 'DM Sans', sans-serif; background: var(--bg); color: var(--text); min-height: 100vh; }
+
+header { background: var(--surface); border-bottom: 1px solid var(--border); padding: 0 2rem; position: sticky; top: 0; z-index: 100; }
+.header-inner { max-width: 1200px; margin: 0 auto; display: flex; align-items: center; justify-content: space-between; height: 64px; gap: 1rem; }
+.logo { font-family: 'DM Serif Display', serif; font-size: 22px; color: var(--text); white-space: nowrap; }
+.logo span { color: var(--accent); font-style: italic; }
+
+.nav-tabs { display: flex; gap: 4px; }
+.nav-tab { padding: 6px 16px; border-radius: 8px; font-size: 13px; font-weight: 500; cursor: pointer; border: none; background: transparent; color: var(--muted); font-family: 'DM Sans', sans-serif; transition: all .15s; display: flex; align-items: center; gap: 6px; }
+.nav-tab:hover { background: var(--bg); color: var(--text); }
+.nav-tab.active { background: var(--accent); color: white; }
+
+.add-btn { display: flex; align-items: center; gap: 6px; background: var(--accent); color: white; border: none; border-radius: 8px; padding: 8px 16px; font-family: 'DM Sans', sans-serif; font-size: 13px; font-weight: 500; cursor: pointer; white-space: nowrap; }
+.add-btn:hover { background: #235c42; }
+
+.search-wrap { display: flex; align-items: center; gap: 8px; background: var(--bg); border: 1px solid var(--border); border-radius: 8px; padding: 0 12px; flex: 1; max-width: 240px; }
+.search-wrap svg { flex-shrink: 0; color: var(--muted); }
+.search-wrap input { border: none; background: transparent; font-family: 'DM Sans', sans-serif; font-size: 14px; color: var(--text); outline: none; width: 100%; padding: 8px 0; }
+.search-wrap input::placeholder { color: var(--muted); }
+
+main { max-width: 1200px; margin: 0 auto; padding: 2rem; }
+.page { display: none; }
+.page.active { display: block; }
+
+/* Filter pills */
+.filter-row { display: flex; gap: 8px; margin-bottom: 2rem; flex-wrap: wrap; }
+.pill { padding: 6px 16px; border-radius: 20px; font-size: 13px; font-weight: 500; cursor: pointer; border: 1px solid var(--border); background: var(--surface); color: var(--muted); transition: all .15s; font-family: 'DM Sans', sans-serif; }
+.pill:hover { border-color: var(--accent); color: var(--accent); }
+.pill.active { background: var(--accent); color: white; border-color: var(--accent); }
+
+.section-label { font-size: 11px; text-transform: uppercase; letter-spacing: .1em; color: var(--muted); font-weight: 500; margin-bottom: 12px; margin-top: 2rem; }
+.section-label:first-of-type { margin-top: 0; }
+
+/* Recipe grid */
+.grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(210px, 1fr)); gap: 12px; margin-bottom: 1rem; }
+.card { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; overflow: hidden; cursor: pointer; transition: border-color .15s, transform .15s; }
+.card:hover { border-color: var(--accent); transform: translateY(-1px); }
+.card.active { border-color: var(--accent); border-width: 2px; }
+.card-img { width: 100%; height: 110px; background: var(--bg); display: flex; align-items: center; justify-content: center; overflow: hidden; }
+.card-img img { width: 100%; height: 100%; object-fit: cover; }
+.card-img-placeholder { display: flex; flex-direction: column; align-items: center; gap: 4px; color: var(--muted); font-size: 11px; }
+.card-body { padding: 12px 14px 14px; }
+.card-title { font-size: 13px; font-weight: 500; color: var(--text); margin-bottom: 8px; line-height: 1.35; }
+.macro-row { display: flex; gap: 4px; flex-wrap: wrap; }
+.mpill { font-size: 10px; padding: 2px 7px; border-radius: 10px; font-weight: 500; }
+.m-kcal { background: var(--purple-bg); color: var(--purple-text); }
+.m-prot { background: var(--green-bg); color: var(--green-text); }
+.m-karbo { background: var(--blue-bg); color: var(--blue-text); }
+.m-fett { background: var(--amber-bg); color: var(--amber-text); }
+.edit-card-btn { display: flex; align-items: center; gap: 4px; margin-top: 8px; background: none; border: 1px solid var(--border); border-radius: 6px; padding: 4px 10px; font-size: 11px; color: var(--muted); font-family: 'DM Sans', sans-serif; cursor: pointer; transition: all .15s; }
+.edit-card-btn:hover { border-color: var(--accent); color: var(--accent); }
+.ing-row { display:flex; align-items:center; gap:8px; background:var(--bg); border:1px solid var(--border); border-radius:8px; padding:7px 10px; }
+.ing-row span { flex:1; font-size:13px; color:var(--text); }
+.ing-remove { background:none; border:none; cursor:pointer; color:var(--muted); font-size:16px; line-height:1; padding:0 2px; flex-shrink:0; }
+.ing-remove:hover { color:#c0392b; }
+.ing-autocomplete { position:relative; flex:1; }
+.ing-dropdown { position:absolute; top:100%; left:0; right:0; background:var(--surface); border:1px solid var(--border); border-radius:8px; z-index:500; max-height:200px; overflow-y:auto; margin-top:3px; box-shadow:0 4px 12px rgba(0,0,0,0.08); }
+.ing-dropdown-item { padding:9px 12px; font-size:13px; color:var(--text); cursor:pointer; display:flex; align-items:center; justify-content:space-between; }
+.ing-dropdown-item:hover, .ing-dropdown-item.selected { background:var(--bg); }
+.ing-dropdown-item .ing-cat { font-size:10px; color:var(--muted); }
+.ing-dropdown-empty { padding:9px 12px; font-size:13px; color:var(--muted); font-style:italic; }
+
+.empty { text-align: center; padding: 4rem 2rem; color: var(--muted); font-size: 15px; }
+.empty svg { margin-bottom: 12px; display: block; margin-left: auto; margin-right: auto; }
+
+/* Detail panel */
+.detail-panel { display: none; position: fixed; right: 0; top: 0; bottom: 0; width: 360px; background: var(--surface); border-left: 1px solid var(--border); z-index: 200; overflow-y: auto; flex-direction: column; }
+.detail-panel.open { display: flex; }
+.detail-img { width: 100%; height: 180px; background: var(--bg); position: relative; flex-shrink: 0; overflow: hidden; display: flex; align-items: center; justify-content: center; }
+.detail-img img { width: 100%; height: 100%; object-fit: cover; }
+.detail-img-placeholder { display: flex; flex-direction: column; align-items: center; gap: 6px; color: var(--muted); font-size: 13px; }
+.upload-overlay { position: absolute; bottom: 10px; right: 10px; }
+.upload-btn-sm { display: flex; align-items: center; gap: 5px; background: rgba(255,255,255,0.92); border: 1px solid var(--border); border-radius: 7px; padding: 5px 10px; font-size: 12px; font-family: 'DM Sans', sans-serif; cursor: pointer; color: var(--text); }
+.upload-btn-sm:hover { background: white; }
+.detail-content { padding: 1.25rem; flex: 1; }
+.detail-header { display: flex; align-items: flex-start; justify-content: space-between; margin-bottom: 1rem; gap: 8px; }
+.detail-title { font-family: 'DM Serif Display', serif; font-size: 19px; color: var(--text); line-height: 1.2; }
+.close-btn { background: none; border: none; cursor: pointer; color: var(--muted); padding: 2px; flex-shrink: 0; }
+.close-btn:hover { color: var(--text); }
+.est-note { font-size: 10px; color: var(--muted); margin-bottom: 8px; }
+.macro-grid { display: grid; grid-template-columns: repeat(4,1fr); gap: 6px; margin-bottom: 1.25rem; }
+.macro-box { border-radius: 8px; padding: 10px 6px; text-align: center; }
+.macro-box .val { font-size: 16px; font-weight: 500; }
+.macro-box .lbl { font-size: 10px; margin-top: 2px; }
+.detail-section-label { font-size: 10px; text-transform: uppercase; letter-spacing: .08em; color: var(--muted); font-weight: 500; margin-bottom: 6px; margin-top: 1rem; }
+.ingredients-list { list-style: none; padding: 0; margin: 0; }
+.ingredients-list li { font-size: 13px; color: var(--text); padding: 5px 0; border-bottom: 1px solid var(--border); display: flex; align-items: center; gap: 8px; line-height: 1.4; }
+.ingredients-list li:last-child { border-bottom: none; }
+.ingredients-list li::before { content: ''; width: 5px; height: 5px; border-radius: 50%; background: var(--accent); flex-shrink: 0; }
+.notes-area { width: 100%; font-size: 13px; font-family: 'DM Sans', sans-serif; border: 1px solid var(--border); border-radius: 8px; padding: 10px; color: var(--text); background: var(--bg); resize: vertical; min-height: 70px; outline: none; margin-top: 4px; }
+.notes-area:focus { border-color: var(--accent); }
+
+/* Overlay backdrop */
+.overlay-backdrop { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.2); z-index: 150; }
+.overlay-backdrop.open { display: block; }
+
+/* ===== UKEPLAN ===== */
+.week-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 1.5rem; flex-wrap: wrap; gap: 1rem; }
+.week-title { font-family: 'DM Serif Display', serif; font-size: 22px; }
+.week-nav { display: flex; align-items: center; gap: 10px; }
+.week-nav button { background: var(--surface); border: 1px solid var(--border); border-radius: 8px; padding: 6px 12px; cursor: pointer; font-family: 'DM Sans', sans-serif; font-size: 13px; color: var(--text); }
+.week-nav button:hover { border-color: var(--accent); color: var(--accent); }
+.week-label { font-size: 13px; color: var(--muted); min-width: 140px; text-align: center; }
+
+.week-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 8px; }
+.day-col { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; overflow: hidden; min-height: 280px; display: flex; flex-direction: column; }
+.day-col.today { border-color: var(--accent); border-width: 2px; }
+.day-header { padding: 10px 10px 8px; border-bottom: 1px solid var(--border); }
+.day-name { font-size: 11px; font-weight: 500; text-transform: uppercase; letter-spacing: .07em; color: var(--muted); }
+.day-date { font-size: 18px; font-weight: 500; color: var(--text); margin-top: 1px; }
+.day-col.today .day-date { color: var(--accent); }
+
+.day-meals { padding: 8px; flex: 1; display: flex; flex-direction: column; gap: 6px; }
+.meal-slot { background: var(--bg); border-radius: 8px; padding: 7px 9px; position: relative; }
+.meal-slot-label { font-size: 9px; text-transform: uppercase; letter-spacing: .07em; color: var(--muted); margin-bottom: 3px; }
+.meal-slot-name { font-size: 11px; font-weight: 500; color: var(--text); line-height: 1.3; }
+.meal-slot-kcal { font-size: 10px; color: var(--muted); margin-top: 2px; }
+.meal-slot-empty { font-size: 11px; color: var(--muted); font-style: italic; }
+.meal-slot-remove { position: absolute; top: 4px; right: 4px; background: none; border: none; cursor: pointer; color: var(--muted); padding: 2px; font-size: 14px; line-height: 1; display: none; }
+.meal-slot:hover .meal-slot-remove { display: block; }
+.meal-slot-remove:hover { color: #c0392b; }
+.add-meal-btn { background: none; border: 1px dashed var(--border); border-radius: 8px; padding: 7px; width: 100%; cursor: pointer; font-size: 11px; color: var(--muted); font-family: 'DM Sans', sans-serif; text-align: center; transition: all .15s; }
+.add-meal-btn:hover { border-color: var(--accent); color: var(--accent); background: #E8F4EE; }
+
+.week-summary { margin-top: 1.5rem; background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 1.25rem; }
+.week-summary h3 { font-size: 14px; font-weight: 500; margin-bottom: 1rem; color: var(--text); }
+.summary-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 8px; }
+.summary-day { text-align: center; }
+.summary-day-name { font-size: 10px; color: var(--muted); margin-bottom: 4px; }
+.summary-kcal { font-size: 14px; font-weight: 500; color: var(--text); }
+.summary-kcal.zero { color: var(--muted); }
+
+/* Pick meal modal */
+.modal-overlay { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.4); z-index: 400; align-items: center; justify-content: center; }
+.modal-overlay.open { display: flex; }
+.modal { background: var(--surface); border-radius: 14px; padding: 1.5rem; width: 90%; max-width: 500px; max-height: 80vh; overflow-y: auto; }
+.modal h2 { font-family: 'DM Serif Display', serif; font-size: 20px; margin-bottom: 1rem; }
+.modal-search { display: flex; align-items: center; gap: 8px; background: var(--bg); border: 1px solid var(--border); border-radius: 8px; padding: 0 12px; margin-bottom: 1rem; }
+.modal-search input { border: none; background: transparent; font-family: 'DM Sans', sans-serif; font-size: 14px; color: var(--text); outline: none; width: 100%; padding: 9px 0; }
+.pick-list { display: flex; flex-direction: column; gap: 6px; }
+.pick-item { display: flex; align-items: center; gap: 12px; padding: 10px 12px; border: 1px solid var(--border); border-radius: 10px; cursor: pointer; transition: all .15s; }
+.pick-item:hover { border-color: var(--accent); background: #E8F4EE; }
+.pick-item-name { font-size: 13px; font-weight: 500; color: var(--text); flex: 1; }
+.pick-item-cat { font-size: 10px; color: var(--muted); background: var(--bg); padding: 2px 7px; border-radius: 8px; }
+.pick-item-kcal { font-size: 11px; color: var(--purple-text); background: var(--purple-bg); padding: 2px 7px; border-radius: 8px; }
+.modal-footer { display: flex; gap: 8px; justify-content: flex-end; margin-top: 1.25rem; }
+.btn-cancel { padding: 8px 16px; border: 1px solid var(--border); background: transparent; border-radius: 8px; font-family: 'DM Sans', sans-serif; font-size: 13px; cursor: pointer; color: var(--text); }
+.btn-save { padding: 8px 18px; background: var(--accent); color: white; border: none; border-radius: 8px; font-family: 'DM Sans', sans-serif; font-size: 13px; font-weight: 500; cursor: pointer; }
+.btn-save:hover { background: #235c42; }
+
+/* Add recipe modal */
+.form-group { margin-bottom: 1rem; }
+.form-group label { display: block; font-size: 12px; font-weight: 500; color: var(--muted); text-transform: uppercase; letter-spacing: .06em; margin-bottom: 5px; }
+.form-group input, .form-group select, .form-group textarea { width: 100%; font-family: 'DM Sans', sans-serif; font-size: 14px; color: var(--text); background: var(--bg); border: 1px solid var(--border); border-radius: 8px; padding: 9px 12px; outline: none; }
+.form-group input:focus, .form-group select:focus, .form-group textarea:focus { border-color: var(--accent); }
+.macro-inputs { display: grid; grid-template-columns: repeat(4,1fr); gap: 8px; }
+
+/* ===== HANDLELISTE ===== */
+.shopping-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 1.5rem; flex-wrap: wrap; gap: 1rem; }
+.shopping-title { font-family: 'DM Serif Display', serif; font-size: 22px; }
+.generate-btn { display: flex; align-items: center; gap: 6px; background: var(--accent); color: white; border: none; border-radius: 8px; padding: 9px 18px; font-family: 'DM Sans', sans-serif; font-size: 13px; font-weight: 500; cursor: pointer; }
+.generate-btn:hover { background: #235c42; }
+.reset-btn { display: flex; align-items: center; gap: 6px; background: transparent; color: var(--muted); border: 1px solid var(--border); border-radius: 8px; padding: 9px 18px; font-family: 'DM Sans', sans-serif; font-size: 13px; font-weight: 500; cursor: pointer; }
+.reset-btn:hover { border-color: #c0392b; color: #c0392b; }
+
+.shopping-layout { display: grid; grid-template-columns: 1fr 1fr; gap: 1.5rem; }
+.shopping-col h3 { font-size: 14px; font-weight: 500; margin-bottom: 1rem; color: var(--text); display: flex; align-items: center; gap: 8px; }
+.shopping-col h3 span { font-size: 11px; color: var(--muted); font-weight: 400; }
+
+.item-list { display: flex; flex-direction: column; gap: 4px; }
+.shop-item { display: flex; align-items: center; gap: 10px; padding: 9px 12px; background: var(--surface); border: 1px solid var(--border); border-radius: 8px; cursor: pointer; transition: all .15s; }
+.shop-item:hover { border-color: var(--border); }
+.shop-item.have { opacity: 0.45; }
+.shop-item.have .shop-item-name { text-decoration: line-through; }
+.shop-check { width: 18px; height: 18px; border: 1.5px solid var(--border); border-radius: 4px; flex-shrink: 0; display: flex; align-items: center; justify-content: center; transition: all .15s; }
+.shop-item.have .shop-check { background: var(--accent); border-color: var(--accent); }
+.shop-check svg { display: none; }
+.shop-item.have .shop-check svg { display: block; }
+.shop-item-name { font-size: 13px; color: var(--text); flex: 1; }
+.shop-item-source { font-size: 10px; color: var(--muted); }
+
+.add-item-row { display: flex; gap: 8px; margin-top: 8px; }
+.add-item-row input { flex: 1; font-family: 'DM Sans', sans-serif; font-size: 13px; color: var(--text); background: var(--bg); border: 1px solid var(--border); border-radius: 8px; padding: 8px 12px; outline: none; }
+.add-item-row input:focus { border-color: var(--accent); }
+.add-item-row button { background: var(--accent); color: white; border: none; border-radius: 8px; padding: 8px 14px; font-family: 'DM Sans', sans-serif; font-size: 13px; cursor: pointer; white-space: nowrap; }
+
+.empty-shopping { text-align: center; padding: 2rem; color: var(--muted); font-size: 14px; background: var(--surface); border: 1px dashed var(--border); border-radius: 12px; }
+
+/* ===== BUNN-NAV (mobil) ===== */
+.bottom-nav { display: none; }
+
+@media (max-width: 700px) {
+  /* Layout */
+  main { padding: 1rem 1rem 5rem; }
+  header { padding: 0 1rem; }
+
+  /* Skjul desktop-nav */
+  .nav-tabs { display: none; }
+
+  /* Header: bare logo + legg-til-knapp, søk flyttes ut */
+  .header-inner { height: 56px; }
+  .logo { font-size: 18px; }
+  #recipeSearch { display: none !important; }
+  .add-btn span { display: none; }
+  .add-btn { padding: 8px 10px; border-radius: 50%; width: 36px; height: 36px; justify-content: center; }
+
+  /* Søk rett under header i oppskrift-siden */
+  .mobile-search { display: flex; }
+
+  /* Oppskrift-grid: 2 kolonner */
+  .grid { grid-template-columns: repeat(2, 1fr); gap: 10px; }
+  .card-img { height: 90px; }
+  .card-body { padding: 10px 10px 12px; }
+  .card-title { font-size: 12px; }
+  .mpill { font-size: 9px; }
+
+  /* Filterpills: horisontal scroll */
+  .filter-row { flex-wrap: nowrap; overflow-x: auto; padding-bottom: 4px; -webkit-overflow-scrolling: touch; scrollbar-width: none; }
+  .filter-row::-webkit-scrollbar { display: none; }
+  .pill { white-space: nowrap; flex-shrink: 0; }
+
+  /* Ukeplan: horisontal scroll med faste kolonnebredder */
+  .week-grid { grid-template-columns: repeat(7, 200px); overflow-x: auto; padding-bottom: 8px; -webkit-overflow-scrolling: touch; }
+  #page-week > .week-grid { display: flex; overflow-x: auto; gap: 8px; }
+  .day-col { min-width: 180px; flex-shrink: 0; }
+  .summary-grid { grid-template-columns: repeat(7, 1fr); overflow-x: auto; font-size: 11px; }
+
+  /* Detail-panel: bunn-sheet */
+  .detail-panel { width: 100%; border-left: none; top: auto; height: 90vh; border-radius: 16px 16px 0 0; }
+
+  /* Modaler: nær fullskjerm */
+  .modal { width: 95%; max-width: 95%; margin: 0 auto; border-radius: 16px; padding: 1.25rem; }
+  .modal-overlay { align-items: flex-end; padding-bottom: env(safe-area-inset-bottom); }
+  .modal { border-radius: 16px 16px 0 0; max-height: 90vh; }
+
+  /* Handleliste */
+  .shopping-layout { grid-template-columns: 1fr; }
+  .shopping-header { flex-direction: column; align-items: flex-start; }
+  .generate-btn, .reset-btn { width: 100%; justify-content: center; }
+
+  /* Ukeplan-header */
+  .week-header { flex-direction: column; align-items: flex-start; gap: 0.5rem; }
+  .week-nav button { padding: 6px 10px; font-size: 12px; }
+
+  /* Bunn-nav */
+  .bottom-nav {
+    display: flex;
+    position: fixed;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    background: var(--surface);
+    border-top: 1px solid var(--border);
+    z-index: 300;
+    padding-bottom: env(safe-area-inset-bottom);
+  }
+  .bottom-nav-item {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 3px;
+    padding: 8px 4px;
+    background: none;
+    border: none;
+    cursor: pointer;
+    font-family: 'DM Sans', sans-serif;
+    font-size: 10px;
+    color: var(--muted);
+    transition: color .15s;
+  }
+  .bottom-nav-item.active { color: var(--accent); }
+  .bottom-nav-item svg { flex-shrink: 0; }
+}
+
+/* Søkefelt på mobil (vises kun på mobil) */
+.mobile-search {
+  display: none;
+  align-items: center;
+  gap: 8px;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 0 12px;
+  margin-bottom: 1rem;
+}
+.mobile-search svg { flex-shrink: 0; color: var(--muted); }
+.mobile-search input { border: none; background: transparent; font-family: 'DM Sans', sans-serif; font-size: 14px; color: var(--text); outline: none; width: 100%; padding: 10px 0; }
+.mobile-search input::placeholder { color: var(--muted); }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="header-inner">
+    <div class="logo">mine <span>oppskrifter</span></div>
+    <div class="nav-tabs">
+      <button class="nav-tab active" onclick="showPage('recipes',this)">
+        <svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M9 5H7a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2h-2"/><rect x="9" y="3" width="6" height="4" rx="1"/></svg>
+        Oppskrifter
+      </button>
+      <button class="nav-tab" onclick="showPage('week',this)">
+        <svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/></svg>
+        Ukeplan
+      </button>
+      <button class="nav-tab" onclick="showPage('shopping',this)">
+        <svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M6 2 3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4z"/><line x1="3" y1="6" x2="21" y2="6"/><path d="M16 10a4 4 0 0 1-8 0"/></svg>
+        Handleliste
+      </button>
+      <button class="nav-tab" onclick="showPage('ingredients',this)">
+        <svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><line x1="3" y1="6" x2="3.01" y2="6"/><line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/></svg>
+        Ingrediensliste
+      </button>
+    </div>
+    <div style="display:flex;gap:8px;align-items:center">
+      <div class="search-wrap" id="recipeSearch">
+        <svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
+        <input type="text" id="searchInput" placeholder="Søk..." oninput="renderRecipes()">
+      </div>
+      <button class="add-btn" id="addRecipeBtn" onclick="openAddModal()">
+        <svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg>
+        Ny oppskrift
+      </button>
+    </div>
+  </div>
+</header>
+
+<main>
+  <!-- OPPSKRIFTER -->
+  <div class="page active" id="page-recipes">
+    <div class="mobile-search">
+      <svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
+      <input type="text" placeholder="Søk etter oppskrift..." oninput="document.getElementById('searchInput').value=this.value;renderRecipes()">
+    </div>
+    <div class="filter-row">
+      <button class="pill active" onclick="setFilter('alle',this)">Alle</button>
+      <button class="pill" onclick="setFilter('frokost',this)">Frokost</button>
+      <button class="pill" onclick="setFilter('middag',this)">Middag</button>
+      <button class="pill" onclick="setFilter('høyprotein',this)">Høyprotein</button>
+      <button class="pill" onclick="setFilter('rask',this)">Rask</button>
+      <button class="pill" onclick="setFilter('bakst',this)">Bakst</button>
+    </div>
+    <div id="listContainer"></div>
+  </div>
+
+  <!-- UKEPLAN -->
+  <div class="page" id="page-week">
+    <div class="week-header">
+      <div class="week-title">Ukeplan</div>
+      <div class="week-nav">
+        <button onclick="changeWeek(-1)">&#8592; Forrige</button>
+        <div class="week-label" id="weekLabel"></div>
+        <button onclick="changeWeek(1)">Neste &#8594;</button>
+      </div>
+    </div>
+    <div class="week-grid" id="weekGrid"></div>
+    <div class="week-summary">
+      <h3>Kalorier per dag denne uken</h3>
+      <div class="summary-grid" id="weekSummary"></div>
+    </div>
+  </div>
+
+  <!-- INGREDIENSLISTE -->
+  <div class="page" id="page-ingredients">
+    <div class="shopping-header">
+      <div class="shopping-title">Ingrediensliste</div>
+    </div>
+    <p style="font-size:13px;color:var(--muted);margin-bottom:1.5rem;max-width:520px">Legg til ingredienser som mangler i forslagslisten. De vil dukke opp automatisk når du legger til ingredienser i oppskrifter, og merkes med ★.</p>
+    <div style="background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:1.25rem;max-width:600px">
+      <div style="display:flex;gap:8px;margin-bottom:1.25rem;flex-wrap:wrap">
+        <input type="text" id="customIngInput" placeholder="F.eks. Brunost, Chèvre..." style="flex:1;min-width:160px"
+          onkeydown="if(event.key==='Enter'){event.preventDefault();addCustomIngredient()}">
+        <select id="customIngCat" style="width:150px">
+          <option value="Meieri/Egg">Meieri/Egg</option>
+          <option value="Kjøtt">Kjøtt</option>
+          <option value="Fisk">Fisk</option>
+          <option value="Grønnsaker">Grønnsaker</option>
+          <option value="Frukt">Frukt</option>
+          <option value="Korn/Brød">Korn/Brød</option>
+          <option value="Tørrvarer">Tørrvarer</option>
+          <option value="Saus/Krydder">Saus/Krydder</option>
+          <option value="Bakst">Bakst</option>
+          <option value="Pålegg">Pålegg</option>
+          <option value="Annet">Annet</option>
+        </select>
+        <button onclick="addCustomIngredient()" style="background:var(--accent);color:white;border:none;border-radius:8px;padding:8px 16px;font-family:'DM Sans',sans-serif;font-size:13px;font-weight:500;cursor:pointer;white-space:nowrap">+ Legg til</button>
+      </div>
+      <div id="customIngListPage" style="display:flex;flex-direction:column;gap:5px"></div>
+    </div>
+  </div>
+
+  <!-- HANDLELISTE -->
+  <div class="page" id="page-shopping">
+    <div class="shopping-header">
+      <div class="shopping-title">Handleliste</div>
+      <div style="display:flex;gap:8px">
+        <button class="generate-btn" onclick="generateShoppingList()">
+          <svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+          Generer fra ukeplan
+        </button>
+        <button class="reset-btn" onclick="resetShoppingList()">
+          <svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 1 0 .49-4"/></svg>
+          Nullstill liste
+        </button>
+      </div>
+    </div>
+    <div class="shopping-layout">
+      <div class="shopping-col">
+        <h3>Må handles <span id="needCount"></span></h3>
+        <div class="item-list" id="needList"></div>
+        <div class="add-item-row">
+          <input type="text" id="manualItem" placeholder="Legg til vare manuelt..." onkeydown="if(event.key==='Enter')addManualItem()">
+          <button onclick="addManualItem()">Legg til</button>
+        </div>
+      </div>
+      <div class="shopping-col">
+        <h3>Har hjemme <span id="haveCount"></span></h3>
+        <div class="item-list" id="haveList"></div>
+        <div class="add-item-row">
+          <input type="text" id="manualHave" placeholder="Legg til hva du har..." onkeydown="if(event.key==='Enter')addManualHave()">
+          <button onclick="addManualHave()">Legg til</button>
+        </div>
+      </div>
+    </div>
+  </div>
+</main>
+
+<!-- Detail panel -->
+<div class="overlay-backdrop" id="backdrop" onclick="closeDetail()"></div>
+<div class="detail-panel" id="detailPanel">
+  <div class="detail-img" id="dImgWrap">
+    <div class="detail-img-placeholder" id="dImgHint">
+      <svg width="28" height="28" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><path d="m21 15-5-5L5 21"/></svg>
+      Ingen bilde ennå
+    </div>
+    <img id="dImg" style="display:none">
+    <div class="upload-overlay">
+      <button class="upload-btn-sm" onclick="document.getElementById('fileInput').click()">
+        <svg width="12" height="12" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+        Last opp bilde
+      </button>
+      <input type="file" id="fileInput" style="display:none" accept="image/*" onchange="handleImg(event)">
+    </div>
+  </div>
+  <div class="detail-content">
+    <div class="detail-header">
+      <div class="detail-title" id="dTitle"></div>
+      <button class="close-btn" onclick="closeDetail()" aria-label="Lukk">
+        <svg width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M18 6 6 18M6 6l12 12"/></svg>
+      </button>
+    </div>
+    <div class="est-note">* Estimerte verdier per porsjon</div>
+    <div class="macro-grid" id="dMacros"></div>
+    <div class="detail-section-label">Ingredienser</div>
+    <div id="dIngredients"></div>
+    <div class="detail-section-label" style="margin-top:1.25rem">Notater</div>
+    <textarea class="notes-area" id="dNotes" placeholder="Justeringer, tips, erfaringer..." oninput="saveNote()"></textarea>
+  </div>
+</div>
+
+<!-- Pick meal modal -->
+<div class="modal-overlay" id="pickModal">
+  <div class="modal">
+    <h2 id="pickModalTitle">Velg måltid</h2>
+    <div class="modal-search">
+      <svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
+      <input type="text" id="pickSearch" placeholder="Søk etter rett..." oninput="renderPickList()">
+    </div>
+    <div class="pick-list" id="pickList"></div>
+    <div class="modal-footer">
+      <button class="btn-cancel" onclick="closePickModal()">Avbryt</button>
+    </div>
+  </div>
+</div>
+
+<!-- Add recipe modal -->
+<div class="modal-overlay" id="addModal">
+  <div class="modal">
+    <h2>Ny oppskrift</h2>
+    <div class="form-group"><label>Navn</label><input type="text" id="fName" placeholder="Navn på rett"></div>
+    <div class="form-group"><label>Kategori</label>
+      <select id="fCat"><option value="frokost">Frokost</option><option value="middag">Middag</option><option value="snack">Snack</option></select>
+    </div>
+    <div class="form-group">
+      <label>Ingredienser</label>
+      <div id="fIngredientList" style="display:flex;flex-direction:column;gap:6px;margin-bottom:8px"></div>
+      <div style="display:flex;gap:8px;align-items:flex-start">
+        <div class="ing-autocomplete">
+          <input type="text" id="fIngredientInput" placeholder="Skriv ingrediens..." autocomplete="off"
+            oninput="showIngDropdown('fIngredientInput','fIngDropdown')"
+            onkeydown="handleIngKey(event,'fIngredientInput','fIngDropdown',addNewIngredient)"
+            style="width:100%">
+          <div class="ing-dropdown" id="fIngDropdown" style="display:none"></div>
+        </div>
+        <button type="button" onclick="addNewIngredient()" style="background:var(--accent);color:white;border:none;border-radius:8px;padding:8px 14px;font-family:'DM Sans',sans-serif;font-size:13px;cursor:pointer;white-space:nowrap;flex-shrink:0">+ Legg til</button>
+      </div>
+    </div>
+    <div class="form-group"><label>Næringsverdier per porsjon</label>
+      <div class="macro-inputs">
+        <input type="number" id="fKcal" placeholder="kcal">
+        <input type="number" id="fProt" placeholder="protein g">
+        <input type="number" id="fKarbo" placeholder="karbo g">
+        <input type="number" id="fFett" placeholder="fett g">
+      </div>
+    </div>
+    <div class="form-group"><label>Tags</label><input type="text" id="fTags" placeholder="f.eks. rask, protein (kommaseparert)"></div>
+    <div class="modal-footer">
+      <button class="btn-cancel" onclick="closeAddModal()">Avbryt</button>
+      <button class="btn-save" onclick="addRecipe()">Lagre oppskrift</button>
+    </div>
+  </div>
+</div>
+
+<script>
+const DAYS = ['Mandag','Tirsdag','Onsdag','Torsdag','Fredag','Lørdag','Søndag'];
+const DAYS_SHORT = ['Man','Tir','Ons','Tor','Fre','Lør','Søn'];
+const SLOTS = ['frokost','lunsj','middag','snack'];
+const SLOT_LABELS = {frokost:'Frokost',lunsj:'Lunsj',middag:'Middag',snack:'Snack'};
+
+const DEFAULT_RECIPES = [
+  {id:1,cat:'frokost',title:'Gresk yoghurt med bær og granola',tags:['søtt'],kcal:380,prot:18,karbo:52,fett:10,
+   ingredientList:[{name:'Gresk yoghurt',amount:200,unit:'g'},{name:'Blandede bær',amount:80,unit:'g'},{name:'Granola',amount:40,unit:'g'},{name:'Honning',amount:1,unit:'ts'}],
+   ingredients:'Gresk yoghurt (200g), blandede bær (80g), granola (40g), honning (1 ts)'},
+  {id:2,cat:'frokost',title:'Avokadotoast med fetaost',tags:['rask'],kcal:320,prot:9,karbo:28,fett:19,
+   ingredientList:[{name:'Brødskive',amount:1,unit:'stk'},{name:'Avokado',amount:0.5,unit:'stk'},{name:'Løk',amount:0.25,unit:'stk'},{name:'Paprika',amount:0.25,unit:'stk'},{name:'Fetaost',amount:1,unit:'ss'}],
+   ingredients:'Brødskive, ½ avokado, ¼ løk, ¼ paprika, 1 ss fetaost'},
+  {id:3,cat:'frokost',title:'Avokadotoast med hamburgerygg',tags:[],kcal:420,prot:16,karbo:26,fett:28,
+   ingredientList:[{name:'Brødskive',amount:1,unit:'stk'},{name:'Avokado',amount:0.25,unit:'stk'},{name:'Hamburgerygg',amount:1,unit:'stk'},{name:'Osteskive',amount:1,unit:'stk'},{name:'Ruccola',amount:1,unit:'neve'},{name:'Sjampinjong i søtsursaus',amount:1,unit:'ss'},{name:'Valnøtter',amount:1,unit:'neve'},{name:'Honning',amount:1,unit:'ts'},{name:'Balsamico',amount:1,unit:'ss'}],
+   ingredients:'Brødskive, ¼ avokado, hamburgerygg, osteskive, ruccola, sjampinjong i søtsursaus, valnøtter, honning, balsamico'},
+  {id:4,cat:'frokost',title:'Potetlefse med kremost og skinke',tags:['rask'],kcal:350,prot:17,karbo:36,fett:14,
+   ingredientList:[{name:'Potetlefse',amount:1,unit:'stk'},{name:'Kremost',amount:2,unit:'ss'},{name:'Skinke',amount:2,unit:'stk'},{name:'Agurk',amount:0.25,unit:'stk'},{name:'Ost',amount:2,unit:'stk'}],
+   ingredients:'Potetlefse, kremost, skinke (2 skiver), agurk, ost (2 skiver)'},
+  {id:5,cat:'middag',title:'Pokebowl med laks',tags:['protein'],kcal:580,prot:38,karbo:48,fett:22,
+   ingredientList:[{name:'Laks',amount:150,unit:'g'},{name:'Ris',amount:70,unit:'g'},{name:'Mango',amount:0.5,unit:'stk'},{name:'Løk',amount:0.25,unit:'stk'},{name:'Agurk',amount:0.5,unit:'stk'},{name:'Avokado',amount:0.5,unit:'stk'},{name:'Edamame',amount:60,unit:'g'},{name:'Chillimayo',amount:1,unit:'ss'},{name:'Teriyakisaus',amount:2,unit:'ss'}],
+   ingredients:'Laks (150g), ris (70g t.v.), mango, løk, agurk, avokado (½), edamame (60g), chillimayo (1 ss), teriyaki'},
+  {id:6,cat:'middag',title:'Teriyakilaks med ris',tags:['protein'],kcal:520,prot:36,karbo:55,fett:12,
+   ingredientList:[{name:'Laks',amount:150,unit:'g'},{name:'Ris',amount:70,unit:'g'},{name:'Teriyakisaus',amount:3,unit:'ss'},{name:'Chiafrø',amount:1,unit:'ts'},{name:'Mango',amount:60,unit:'g'},{name:'Agurk',amount:0.5,unit:'stk'}],
+   ingredients:'Laks (150g), ris (70g t.v.), teriyakisaus, chiafrø (1 ts), mango (60g), agurk'},
+  {id:7,cat:'middag',title:'Kylling med ris og brokkoli',tags:['protein'],kcal:560,prot:45,karbo:52,fett:16,
+   ingredientList:[{name:'Kyllingbryst',amount:180,unit:'g'},{name:'Ris',amount:70,unit:'g'},{name:'Brokkoli',amount:150,unit:'g'},{name:'Béarnesaus',amount:2,unit:'ss'}],
+   ingredients:'Kyllingbryst (180g), ris (70g t.v.), brokkoli (150g), béarnesaus (2 ss)'},
+  {id:8,cat:'middag',title:'Tunfisksalat',tags:['protein','rask'],kcal:387,prot:37,karbo:26,fett:15,
+   ingredientList:[{name:'Tunfisk i vann',amount:130,unit:'g'},{name:'Agurk',amount:130,unit:'g'},{name:'Rød løk',amount:50,unit:'g'},{name:'Pickles',amount:2,unit:'ss'},{name:'Paprika',amount:0.5,unit:'stk'},{name:'Gresk yoghurt',amount:2,unit:'ss'},{name:'Sennep',amount:3,unit:'ts'},{name:'Sitron',amount:0.5,unit:'stk'},{name:'Avokado',amount:0.5,unit:'stk'}],
+   ingredients:'Tunfisk i vann (130g), agurk (130g), rød løk (50g), pickles, paprika, gresk yoghurt (2 ss), sennep (3 ts), sitron (½), avokado (½)'},
+  {id:9,cat:'middag',title:'Norsk taco',tags:['rask'],kcal:650,prot:30,karbo:58,fett:28,
+   ingredientList:[{name:'Tacoskjell',amount:6,unit:'stk'},{name:'Kjøttdeig',amount:150,unit:'g'},{name:'Paprika',amount:0.5,unit:'stk'},{name:'Rømme',amount:3,unit:'ss'},{name:'Revet ost',amount:50,unit:'g'},{name:'Salsa',amount:3,unit:'ss'}],
+   ingredients:'Tacoskjell eller -lefser, kjøttdeig (150g), grønnsaker, rømme, revet ost, salsa'},
+  {id:10,cat:'middag',title:'Gigi Hadid pasta',tags:[],kcal:680,prot:22,karbo:72,fett:32,
+   ingredientList:[{name:'Pastaskruer',amount:90,unit:'g'},{name:'Tomatpuré',amount:2,unit:'ss'},{name:'Sjarlottløk',amount:2,unit:'stk'},{name:'Hvitløk',amount:2,unit:'fedd'},{name:'Fløte',amount:50,unit:'ml'},{name:'Parmesan',amount:30,unit:'g'},{name:'Crème fraîche',amount:1,unit:'ss'}],
+   ingredients:'Pastaskruer (90g t.v.), tomatpuré, sjarlottløk, hvitløk, fløte (50ml), parmesan, crème fraîche (1 ss)'},
+  {id:11,cat:'middag',title:'Sommerruller med peanøttsaus',tags:['rask'],kcal:420,prot:24,karbo:38,fett:16,
+   ingredientList:[{name:'Rispaper',amount:4,unit:'stk'},{name:'Kyllingbryst',amount:120,unit:'g'},{name:'Gulrot',amount:1,unit:'stk'},{name:'Agurk',amount:0.5,unit:'stk'},{name:'Peanøttsaus',amount:2,unit:'ss'}],
+   ingredients:'Rispaper (4 stk), kylling eller scampi (120g), grønnsaker, peanøttsaus (2 ss)'},
+  {id:12,cat:'middag',title:'Søtpotetbowl med scampi',tags:['protein'],kcal:490,prot:32,karbo:48,fett:16,
+   ingredientList:[{name:'Søtpotet',amount:150,unit:'g'},{name:'Avokado',amount:0.5,unit:'stk'},{name:'Cottage cheese',amount:80,unit:'g'},{name:'Scampi',amount:120,unit:'g'},{name:'Chilliolje',amount:1,unit:'ss'},{name:'Agurk',amount:0.5,unit:'stk'},{name:'Tomat',amount:1,unit:'stk'}],
+   ingredients:'Søtpotet (150g), avokado (½), cottage cheese (80g), scampi (120g) i chilliolje, agurk, tomat'},
+];
+
+let recipes = JSON.parse(JSON.stringify(DEFAULT_RECIPES));
+
+let nextId = 13;
+const notes = {};
+const images = {};
+let activeFilter = 'alle';
+let activeId = null;
+let weekOffset = 0;
+
+// weekPlan[weekKey][dayIndex][slot] = recipeId
+let weekPlan = {};
+let shoppingItems = []; // {name, source, have, manual}
+let haveItems = [];
+
+let pickTarget = null; // {weekKey, dayIndex, slot}
+
+// ---- Persistence ----
+function saveAll() {
+  // Lagre til Firebase
+  if(window._setDoc && window._doc) {
+    window._setDoc(window._doc, {
+      recipes,
+      weekPlan,
+      shoppingItems,
+      haveItems,
+      notes,
+      customIngredients,
+    }).catch(e => console.warn('Firebase lagring feilet', e));
+  }
+  // Fallback: localStorage
+  try {
+    localStorage.setItem('opp_recipes', JSON.stringify(recipes));
+    localStorage.setItem('opp_weekplan', JSON.stringify(weekPlan));
+    localStorage.setItem('opp_shopping', JSON.stringify(shoppingItems));
+    localStorage.setItem('opp_have', JSON.stringify(haveItems));
+    localStorage.setItem('opp_notes', JSON.stringify(notes));
+  } catch(e){}
+}
+
+function loadAll() {
+  // Prøv Firebase-data (lastet inn av <script type="module"> over)
+  const fromFirebase = window._firebaseReady;
+  try {
+    const r = fromFirebase && window._recipes ? window._recipes : JSON.parse(localStorage.getItem('opp_recipes') || 'null');
+    if(r) {
+      recipes = r;
+      recipes.forEach(recipe => {
+        if(!recipe.ingredientList) {
+          const def = DEFAULT_RECIPES.find(d => d.id === recipe.id);
+          if(def && def.ingredientList) recipe.ingredientList = JSON.parse(JSON.stringify(def.ingredientList));
+        }
+      });
+      nextId = Math.max(...recipes.map(x=>x.id))+1;
+    }
+    const w = fromFirebase && window._weekPlan ? window._weekPlan : JSON.parse(localStorage.getItem('opp_weekplan') || 'null');
+    if(w) weekPlan = w;
+    const s = fromFirebase && window._shoppingItems ? window._shoppingItems : JSON.parse(localStorage.getItem('opp_shopping') || 'null');
+    if(s) shoppingItems = s;
+    const h = fromFirebase && window._haveItems ? window._haveItems : JSON.parse(localStorage.getItem('opp_have') || 'null');
+    if(h) haveItems = h;
+    const n = fromFirebase && window._notes ? window._notes : JSON.parse(localStorage.getItem('opp_notes') || 'null');
+    if(n) Object.assign(notes, n);
+    const ci = fromFirebase && window._customIngredients ? window._customIngredients : JSON.parse(localStorage.getItem('opp_custom_ing') || 'null');
+    if(ci) customIngredients = ci;
+  } catch(e){}
+}
+
+function formatAmount(amount, unit) {
+  if(!amount) return unit || '';
+  const fracs = {0.25:'¼',0.5:'½',0.75:'¾',1.25:'1¼',1.5:'1½',1.75:'1¾',2.5:'2½',3.5:'3½'};
+  // Check common fractions at any whole-number offset
+  const whole = Math.floor(amount);
+  const frac = amount - whole;
+  const fracStr = fracs[Math.round(frac*100)/100];
+  let numStr;
+  if(fracStr) {
+    numStr = whole > 0 ? whole + fracStr : fracStr;
+  } else {
+    numStr = Number.isInteger(amount) ? String(amount) : amount.toFixed(1).replace(/\.0$/,'');
+  }
+  return unit ? numStr + ' ' + unit : numStr;
+}
+
+// ---- Nav ----
+function showPage(page, el) {
+  document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+  document.querySelectorAll('.nav-tab').forEach(t => t.classList.remove('active'));
+  document.querySelectorAll('.bottom-nav-item').forEach(t => t.classList.remove('active'));
+  document.getElementById('page-'+page).classList.add('active');
+  el.classList.add('active');
+  // Synk bunn-nav med samme side
+  const pageIndex = ['recipes','week','shopping','ingredients'].indexOf(page);
+  const bottomItems = document.querySelectorAll('.bottom-nav-item');
+  if(bottomItems[pageIndex]) bottomItems[pageIndex].classList.add('active');
+  const isRecipes = page==='recipes';
+  document.getElementById('recipeSearch').style.display = isRecipes ? 'flex' : 'none';
+  document.getElementById('addRecipeBtn').style.display = isRecipes ? 'flex' : 'none';
+  closeDetail();
+  if(page==='week') renderWeek();
+  if(page==='shopping') renderShopping();
+  if(page==='ingredients') renderCustomIngListPage();
+}
+
+// ---- Recipes ----
+function setFilter(f, el) {
+  activeFilter = f;
+  document.querySelectorAll('.pill').forEach(p => p.classList.remove('active'));
+  el.classList.add('active');
+  closeDetail();
+  renderRecipes();
+}
+
+function matches(r) {
+  const q = document.getElementById('searchInput').value.toLowerCase();
+  const textMatch = !q || r.title.toLowerCase().includes(q) || r.ingredients.toLowerCase().includes(q);
+  let fm = true;
+  if(activeFilter==='frokost') fm = r.cat==='frokost';
+  else if(activeFilter==='middag') fm = r.cat==='middag';
+  else if(activeFilter==='høyprotein') fm = r.tags.includes('protein');
+  else if(activeFilter==='rask') fm = r.tags.includes('rask');
+  else if(activeFilter==='bakst') fm = r.cat==='bakst';
+  return textMatch && fm;
+}
+
+function cardHTML(r) {
+  const img = images[r.id];
+  const imgPart = img
+    ? `<img src="${img}" alt="${r.title}">`
+    : `<div class="card-img-placeholder"><svg width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><path d="m21 15-5-5L5 21"/></svg></div>`;
+  return `<div class="card${activeId===r.id?' active':''}" onclick="openDetail(${r.id})">
+    <div class="card-img">${imgPart}</div>
+    <div class="card-body">
+      <div class="card-title">${r.title}</div>
+      <div class="macro-row">
+        <span class="mpill m-kcal">${r.kcal} kcal</span>
+        <span class="mpill m-prot">${r.prot}g prot</span>
+        <span class="mpill m-karbo">${r.karbo}g karbo</span>
+        <span class="mpill m-fett">${r.fett}g fett</span>
+      </div>
+      <button class="edit-card-btn" onclick="event.stopPropagation();openEditModal(${r.id})" title="Rediger">
+        <svg width="12" height="12" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+        Rediger
+      </button>
+    </div>
+  </div>`;
+}
+
+function renderRecipes() {
+  const container = document.getElementById('listContainer');
+  const filtered = recipes.filter(matches);
+  const frokost = filtered.filter(r=>r.cat==='frokost');
+  const middag = filtered.filter(r=>r.cat==='middag');
+  const snack = filtered.filter(r=>r.cat==='snack');
+  let html = '';
+  if(!filtered.length) {
+    html = `<div class="empty"><svg width="32" height="32" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg><div>Ingen oppskrifter funnet</div></div>`;
+  } else {
+    if(frokost.length) html += `<div class="section-label">Frokost</div><div class="grid">${frokost.map(cardHTML).join('')}</div>`;
+    if(middag.length) html += `<div class="section-label">Middag</div><div class="grid">${middag.map(cardHTML).join('')}</div>`;
+    if(snack.length) html += `<div class="section-label">Snack</div><div class="grid">${snack.map(cardHTML).join('')}</div>`;
+    const bakst = filtered.filter(r=>r.cat==='bakst');
+    if(bakst.length) html += `<div class="section-label">Bakst</div><div class="grid">${bakst.map(cardHTML).join('')}</div>`;
+  }
+  container.innerHTML = html;
+}
+
+function openDetail(id) {
+  activeId = id;
+  const r = recipes.find(x=>x.id===id);
+  document.getElementById('dTitle').textContent = r.title;
+  const items = r.ingredients.split(',').map(i=>i.trim()).filter(Boolean);
+  document.getElementById('dIngredients').innerHTML = `<ul class="ingredients-list">${items.map(i=>`<li>${i}</li>`).join('')}</ul>`;
+  document.getElementById('dNotes').value = notes[id]||'';
+  document.getElementById('dMacros').innerHTML = `
+    <div class="macro-box" style="background:#EEEDFE"><div class="val" style="color:#3C3489">${r.kcal}</div><div class="lbl" style="color:#534AB7">kcal</div></div>
+    <div class="macro-box" style="background:#E1F5EE"><div class="val" style="color:#085041">${r.prot}g</div><div class="lbl" style="color:#0F6E56">protein</div></div>
+    <div class="macro-box" style="background:#E6F1FB"><div class="val" style="color:#0C447C">${r.karbo}g</div><div class="lbl" style="color:#185FA5">karbo</div></div>
+    <div class="macro-box" style="background:#FAEEDA"><div class="val" style="color:#633806">${r.fett}g</div><div class="lbl" style="color:#854F0B">fett</div></div>`;
+  const img = images[id];
+  if(img) { document.getElementById('dImg').src=img; document.getElementById('dImg').style.display='block'; document.getElementById('dImgHint').style.display='none'; }
+  else { document.getElementById('dImg').style.display='none'; document.getElementById('dImgHint').style.display='flex'; }
+  document.getElementById('detailPanel').classList.add('open');
+  document.getElementById('backdrop').classList.add('open');
+  renderRecipes();
+}
+
+function closeDetail() {
+  activeId = null;
+  document.getElementById('detailPanel').classList.remove('open');
+  document.getElementById('backdrop').classList.remove('open');
+  renderRecipes();
+}
+
+function saveNote() { if(activeId) { notes[activeId]=document.getElementById('dNotes').value; saveAll(); } }
+
+function handleImg(e) {
+  const file = e.target.files[0];
+  if(!file||!activeId) return;
+  const reader = new FileReader();
+  reader.onload = ev => {
+    images[activeId] = ev.target.result;
+    document.getElementById('dImg').src=ev.target.result;
+    document.getElementById('dImg').style.display='block';
+    document.getElementById('dImgHint').style.display='none';
+    renderRecipes();
+  };
+  reader.readAsDataURL(file);
+  e.target.value='';
+}
+
+function openAddModal() { document.getElementById('addModal').classList.add('open'); }
+function closeAddModal() {
+  document.getElementById('addModal').classList.remove('open');
+  ['fName','fIngredientInput','fTags','fKcal','fProt','fKarbo','fFett'].forEach(id=>document.getElementById(id).value='');
+  newIngredients = [];
+  renderIngredientList('fIngredientList', newIngredients, 'removeNewIngredient');
+}
+
+function addRecipe() {
+  const name = document.getElementById('fName').value.trim();
+  if(!name) { alert('Legg til et navn på retten'); return; }
+  const tags = document.getElementById('fTags').value.split(',').map(t=>t.trim().toLowerCase()).filter(Boolean);
+  recipes.push({ id:nextId++, cat:document.getElementById('fCat').value, title:name, tags,
+    kcal:parseInt(document.getElementById('fKcal').value)||0, prot:parseInt(document.getElementById('fProt').value)||0,
+    karbo:parseInt(document.getElementById('fKarbo').value)||0, fett:parseInt(document.getElementById('fFett').value)||0,
+    ingredientList: JSON.parse(JSON.stringify(newIngredients)),
+    ingredients: newIngredients.map(i=>typeof i==='string'?i:(i.amount&&i.unit?`${i.name} (${i.amount}${i.unit})`:i.name)).join(', ') });
+  newIngredients = [];
+  saveAll(); closeAddModal(); renderRecipes();
+}
+
+// ---- Week helpers ----
+function getWeekKey(offset) {
+  const now = new Date();
+  const monday = new Date(now);
+  monday.setDate(now.getDate() - ((now.getDay()+6)%7) + offset*7);
+  return monday.toISOString().slice(0,10);
+}
+
+function getWeekDates(offset) {
+  const now = new Date();
+  const monday = new Date(now);
+  monday.setDate(now.getDate() - ((now.getDay()+6)%7) + offset*7);
+  return Array.from({length:7}, (_,i)=>{ const d=new Date(monday); d.setDate(monday.getDate()+i); return d; });
+}
+
+function isToday(date) {
+  const t = new Date();
+  return date.getDate()===t.getDate() && date.getMonth()===t.getMonth() && date.getFullYear()===t.getFullYear();
+}
+
+function changeWeek(dir) { weekOffset += dir; renderWeek(); }
+
+function getSlotMeal(weekKey, dayIdx, slot) {
+  return (weekPlan[weekKey]?.[dayIdx]?.[slot]) ?? null;
+}
+
+function setSlotMeal(weekKey, dayIdx, slot, recipeId) {
+  if(!weekPlan[weekKey]) weekPlan[weekKey]={};
+  if(!weekPlan[weekKey][dayIdx]) weekPlan[weekKey][dayIdx]={};
+  weekPlan[weekKey][dayIdx][slot]=recipeId;
+  saveAll();
+}
+
+function removeSlotMeal(weekKey, dayIdx, slot) {
+  if(weekPlan[weekKey]?.[dayIdx]) delete weekPlan[weekKey][dayIdx][slot];
+  saveAll();
+  renderWeek();
+}
+
+function openPickModal(weekKey, dayIdx, slot) {
+  pickTarget = {weekKey, dayIdx, slot};
+  document.getElementById('pickModalTitle').textContent = `Velg ${SLOT_LABELS[slot].toLowerCase()} — ${DAYS[dayIdx]}`;
+  document.getElementById('pickSearch').value='';
+  document.getElementById('pickModal').classList.add('open');
+  renderPickList();
+}
+
+function closePickModal() { document.getElementById('pickModal').classList.remove('open'); pickTarget=null; }
+
+function renderPickList() {
+  const q = document.getElementById('pickSearch').value.toLowerCase();
+  const filtered = recipes.filter(r=>!q||r.title.toLowerCase().includes(q)||r.ingredients.toLowerCase().includes(q));
+  document.getElementById('pickList').innerHTML = filtered.map(r=>`
+    <div class="pick-item" onclick="pickMeal(${r.id})">
+      <div class="pick-item-name">${r.title}</div>
+      <span class="pick-item-cat">${r.cat}</span>
+      <span class="pick-item-kcal">${r.kcal} kcal</span>
+    </div>`).join('');
+}
+
+function pickMeal(recipeId) {
+  if(!pickTarget) return;
+  setSlotMeal(pickTarget.weekKey, pickTarget.dayIdx, pickTarget.slot, recipeId);
+  closePickModal();
+  renderWeek();
+}
+
+function renderWeek() {
+  const dates = getWeekDates(weekOffset);
+  const weekKey = getWeekKey(weekOffset);
+  const start = dates[0]; const end = dates[6];
+  const fmt = d => d.toLocaleDateString('no-NO',{day:'numeric',month:'short'});
+  document.getElementById('weekLabel').textContent = `${fmt(start)} – ${fmt(end)}`;
+
+  let gridHTML = '';
+  let summaryHTML = '';
+  dates.forEach((date, di) => {
+    const today = isToday(date);
+    let dayKcal = 0;
+    let slotsHTML = '';
+    SLOTS.forEach(slot => {
+      const rid = getSlotMeal(weekKey, di, slot);
+      const r = rid ? recipes.find(x=>x.id===rid) : null;
+      if(r) dayKcal += r.kcal||0;
+      slotsHTML += `<div class="meal-slot">
+        <div class="meal-slot-label">${SLOT_LABELS[slot]}</div>
+        ${r ? `<div class="meal-slot-name">${r.title}</div>
+               <div class="meal-slot-kcal">${r.kcal} kcal</div>
+               <button class="meal-slot-remove" onclick="event.stopPropagation();removeSlotMeal('${weekKey}',${di},'${slot}')" title="Fjern">&#x2715;</button>`
+             : `<button class="add-meal-btn" onclick="openPickModal('${weekKey}',${di},'${slot}')">+ ${SLOT_LABELS[slot]}</button>`}
+      </div>`;
+    });
+
+    gridHTML += `<div class="day-col${today?' today':''}">
+      <div class="day-header">
+        <div class="day-name">${DAYS_SHORT[di]}</div>
+        <div class="day-date">${date.getDate()}</div>
+      </div>
+      <div class="day-meals">${slotsHTML}</div>
+    </div>`;
+
+    summaryHTML += `<div class="summary-day">
+      <div class="summary-day-name">${DAYS_SHORT[di]}</div>
+      <div class="summary-kcal${dayKcal===0?' zero':''}">${dayKcal===0?'–':dayKcal}</div>
+    </div>`;
+  });
+
+  document.getElementById('weekGrid').innerHTML = gridHTML;
+  document.getElementById('weekSummary').innerHTML = summaryHTML;
+}
+
+// ---- Shopping ----
+function getAllWeekIngredients() {
+  // key: "navn||enhet" -> {name, amount, unit, sources[]}
+  const merged = {};
+
+  Object.entries(weekPlan).forEach(([wk, week]) => {
+    Object.values(week).forEach(day => {
+      Object.values(day).forEach(rid => {
+        const r = recipes.find(x=>x.id===rid);
+        if(!r) return;
+        const list = r.ingredientList || r.ingredients.split(',').map(i=>{
+          const s = i.trim();
+          return {name:s.replace(/\(.*?\)/g,'').trim(), amount:0, unit:''};
+        });
+        list.forEach(ing => {
+          const obj = typeof ing==='string' ? {name:ing,amount:0,unit:''} : ing;
+          const key = obj.name.toLowerCase() + '||' + (obj.unit||'');
+          if(!merged[key]) merged[key] = {name:obj.name, amount:0, unit:obj.unit||'', sources:[]};
+          merged[key].amount += parseFloat(obj.amount)||0;
+          if(!merged[key].sources.includes(r.title)) merged[key].sources.push(r.title);
+        });
+      });
+    });
+  });
+
+  return Object.values(merged).map(m => ({
+    name: m.name,
+    amount: formatAmount(m.amount, m.unit),
+    source: m.sources.join(', '),
+  }));
+}
+
+function generateShoppingList() {
+  if(shoppingItems.length && !confirm('Erstatte gjeldende handleliste med innhold fra ukeplanen?')) return;
+  shoppingItems = [];
+  haveItems = [];
+  const ingredients = getAllWeekIngredients();
+  ingredients.forEach(item => {
+    shoppingItems.push({name:item.name, amount:item.amount, source:item.source, have:false, manual:false});
+  });
+  saveAll();
+  renderShopping();
+  showPage('shopping', document.querySelectorAll('.nav-tab')[2]);
+}
+
+function resetShoppingList() {
+  if(!confirm('Er du sikker på at du vil nullstille hele handlelisten?')) return;
+  shoppingItems = [];
+  haveItems = [];
+  saveAll();
+  renderShopping();
+}
+
+function toggleShopItem(idx) {
+  shoppingItems[idx].have = !shoppingItems[idx].have;
+  saveAll();
+  renderShopping();
+}
+
+function addManualItem() {
+  const val = document.getElementById('manualItem').value.trim();
+  if(!val) return;
+  shoppingItems.push({name:val, source:'Manuelt lagt til', have:false, manual:true});
+  document.getElementById('manualItem').value='';
+  saveAll(); renderShopping();
+}
+
+function addManualHave() {
+  const val = document.getElementById('manualHave').value.trim();
+  if(!val) return;
+  haveItems.push({name:val});
+  document.getElementById('manualHave').value='';
+  saveAll(); renderShopping();
+}
+
+function removeHaveItem(idx) { haveItems.splice(idx,1); saveAll(); renderShopping(); }
+
+function renderShopping() {
+  const need = shoppingItems.filter(i=>!i.have);
+  const have = shoppingItems.filter(i=>i.have);
+
+  document.getElementById('needCount').textContent = need.length ? `(${need.length})` : '';
+  document.getElementById('haveCount').textContent = (have.length+haveItems.length) ? `(${have.length+haveItems.length})` : '';
+
+  const checkSVG = `<svg width="10" height="10" fill="none" stroke="white" stroke-width="2.5" viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg>`;
+
+  if(!shoppingItems.length && !haveItems.length) {
+    document.getElementById('needList').innerHTML = `<div class="empty-shopping">Generer handleliste fra ukeplanen din, eller legg til varer manuelt.</div>`;
+    document.getElementById('haveList').innerHTML = '';
+    return;
+  }
+
+  document.getElementById('needList').innerHTML = need.map((item,_) => {
+    const idx = shoppingItems.indexOf(item);
+    return `<div class="shop-item" onclick="toggleShopItem(${idx})">
+      <div class="shop-check">${checkSVG}</div>
+      <div class="shop-item-name">${item.name}${item.amount?' <span style="font-size:11px;color:var(--muted);font-weight:400">'+item.amount+'</span>':''}</div>
+      <div class="shop-item-source">${item.source}</div>
+    </div>`;
+  }).join('') || `<div style="color:var(--muted);font-size:13px;padding:8px 0">Alt er handlet inn!</div>`;
+
+  const haveFromList = have.map((item,_) => {
+    const idx = shoppingItems.indexOf(item);
+    return `<div class="shop-item have" onclick="toggleShopItem(${idx})">
+      <div class="shop-check">${checkSVG}</div>
+      <div class="shop-item-name">${item.name}</div>
+      <div class="shop-item-source">${item.source}</div>
+    </div>`;
+  }).join('');
+
+  const haveManual = haveItems.map((item,idx) => `
+    <div class="shop-item have">
+      <div class="shop-check">${checkSVG}</div>
+      <div class="shop-item-name">${item.name}</div>
+      <div class="shop-item-source" style="cursor:pointer;color:#c0392b" onclick="removeHaveItem(${idx})">Fjern</div>
+    </div>`).join('');
+
+  document.getElementById('haveList').innerHTML = haveFromList + haveManual ||
+    `<div style="color:var(--muted);font-size:13px;padding:8px 0">Ingen varer lagt til ennå.</div>`;
+}
+
+
+let editIngredients = [];
+let newIngredients = [];
+
+const UNITS = ['g','kg','ml','l','ss','ts','stk','pk','boks','neve','klype','dl',''];
+
+function renderIngredientList(listId, arr, removeFn) {
+  document.getElementById(listId).innerHTML = arr.length
+    ? arr.map((ing, i) => {
+        const obj = typeof ing === 'string' ? {name:ing, amount:'', unit:''} : ing;
+        const unitOptions = UNITS.map(u => `<option value="${u}" ${obj.unit===u?'selected':''}>${u||'–'}</option>`).join('');
+        return `<div class="ing-row" style="flex-direction:column;align-items:stretch;gap:4px">
+          <div style="display:flex;align-items:center;justify-content:space-between">
+            <span style="font-size:13px;font-weight:500;color:var(--text)">${obj.name}</span>
+            <button class="ing-remove" onclick="${removeFn}(${i})" title="Fjern">&#x2715;</button>
+          </div>
+          <div style="display:flex;align-items:center;gap:6px">
+            <input type="number" min="0" step="any" placeholder="Mengde" value="${obj.amount||''}"
+              oninput="updateIngAmount('${listId}',${i},this.value)"
+              style="width:90px;font-size:13px;padding:5px 8px;border:1px solid var(--border);border-radius:6px;background:var(--surface);color:var(--text);font-family:'DM Sans',sans-serif">
+            <select onchange="updateIngUnit('${listId}',${i},this.value)"
+              style="font-size:13px;padding:5px 6px;border:1px solid var(--border);border-radius:6px;background:var(--surface);color:var(--text);font-family:'DM Sans',sans-serif">
+              ${unitOptions}
+            </select>
+          </div>
+        </div>`;
+      }).join('')
+    : '<div style="font-size:12px;color:var(--muted);padding:4px 0">Ingen ingredienser lagt til ennå</div>';
+}
+
+function updateIngAmount(listId, idx, val) {
+  const arr = listId.startsWith('e') ? editIngredients : newIngredients;
+  if(typeof arr[idx] === 'string') arr[idx] = {name:arr[idx], amount:'', unit:''};
+  arr[idx].amount = val;
+}
+
+function updateIngUnit(listId, idx, val) {
+  const arr = listId.startsWith('e') ? editIngredients : newIngredients;
+  if(typeof arr[idx] === 'string') arr[idx] = {name:arr[idx], amount:'', unit:''};
+  arr[idx].unit = val;
+}
+
+function addEditIngredient() {
+  const val = document.getElementById('eIngredientInput').value.trim();
+  if(!val) return;
+  editIngredients.push({name:val, amount:'', unit:''});
+  document.getElementById('eIngredientInput').value = '';
+  document.getElementById('eIngDropdown').style.display='none';
+  renderIngredientList('eIngredientList', editIngredients, 'removeEditIngredient');
+}
+
+function removeEditIngredient(idx) {
+  editIngredients.splice(idx, 1);
+  renderIngredientList('eIngredientList', editIngredients, 'removeEditIngredient');
+}
+
+function addNewIngredient() {
+  const val = document.getElementById('fIngredientInput').value.trim();
+  if(!val) return;
+  newIngredients.push({name:val, amount:'', unit:''});
+  document.getElementById('fIngredientInput').value = '';
+  document.getElementById('fIngDropdown').style.display='none';
+  renderIngredientList('fIngredientList', newIngredients, 'removeNewIngredient');
+}
+
+function removeNewIngredient(idx) {
+  newIngredients.splice(idx, 1);
+  renderIngredientList('fIngredientList', newIngredients, 'removeNewIngredient');
+}
+
+function openEditModal(id) {
+  const r = recipes.find(x=>x.id===id);
+  if(!r) return;
+  editIngredients = r.ingredientList ? JSON.parse(JSON.stringify(r.ingredientList))
+    : (r.ingredients ? r.ingredients.split(',').map(i=>i.trim()).filter(Boolean).map(n=>({name:n,amount:'',unit:''})) : []);
+  document.getElementById('eId').value = id;
+  document.getElementById('eName').value = r.title;
+  document.getElementById('eCat').value = r.cat;
+  document.getElementById('eKcal').value = r.kcal||'';
+  document.getElementById('eProt').value = r.prot||'';
+  document.getElementById('eKarbo').value = r.karbo||'';
+  document.getElementById('eFett').value = r.fett||'';
+  document.getElementById('eTags').value = (r.tags||[]).join(', ');
+  document.getElementById('eIngredientInput').value = '';
+  renderIngredientList('eIngredientList', editIngredients, 'removeEditIngredient');
+  document.getElementById('editModal').classList.add('open');
+}
+
+function closeEditModal() {
+  document.getElementById('editModal').classList.remove('open');
+  editIngredients = [];
+}
+
+function saveEditRecipe() {
+  const id = parseInt(document.getElementById('eId').value);
+  const idx = recipes.findIndex(x=>x.id===id);
+  if(idx===-1) return;
+  const name = document.getElementById('eName').value.trim();
+  if(!name) { alert('Legg til et navn på retten'); return; }
+  recipes[idx] = {
+    ...recipes[idx],
+    title: name,
+    cat: document.getElementById('eCat').value,
+    ingredientList: JSON.parse(JSON.stringify(editIngredients)),
+    ingredients: editIngredients.map(i=>typeof i==='string'?i:(i.amount&&i.unit?`${i.name} (${i.amount}${i.unit})`:i.name)).join(', '),
+    kcal: parseInt(document.getElementById('eKcal').value)||0,
+    prot: parseInt(document.getElementById('eProt').value)||0,
+    karbo: parseInt(document.getElementById('eKarbo').value)||0,
+    fett: parseInt(document.getElementById('eFett').value)||0,
+    tags: document.getElementById('eTags').value.split(',').map(t=>t.trim().toLowerCase()).filter(Boolean),
+  };
+  saveAll();
+  closeEditModal();
+  if(activeId===id) openDetail(id);
+  renderRecipes();
+}
+
+function deleteRecipe() {
+  const id = parseInt(document.getElementById('eId').value);
+  if(!confirm('Er du sikker på at du vil slette denne oppskriften?')) return;
+  recipes = recipes.filter(x=>x.id!==id);
+  if(activeId===id) closeDetail();
+  saveAll();
+  closeEditModal();
+  renderRecipes();
+}
+
+
+const INGREDIENTS = [
+  // Kjøtt
+  {n:'Kyllingbryst',c:'Kjøtt'},{n:'Kyllinglår',c:'Kjøtt'},{n:'Kyllingfilet',c:'Kjøtt'},
+  {n:'Kjøttdeig (storfe)',c:'Kjøtt'},{n:'Kjøttdeig (kalkun)',c:'Kjøtt'},{n:'Svinekjøtt',c:'Kjøtt'},
+  {n:'Lammekjøtt',c:'Kjøtt'},{n:'Storfekjøtt',c:'Kjøtt'},{n:'Bacon',c:'Kjøtt'},
+  {n:'Hamburgerkjøtt',c:'Kjøtt'},{n:'Pølser',c:'Kjøtt'},{n:'Skinke',c:'Pålegg'},
+  {n:'Kalkunpålegg',c:'Pålegg'},{n:'Servelat',c:'Pålegg'},{n:'Hamburgerygg',c:'Pålegg'},
+  // Fisk og sjømat
+  {n:'Laks',c:'Fisk'},{n:'Laksefilet',c:'Fisk'},{n:'Ørret',c:'Fisk'},{n:'Torsk',c:'Fisk'},
+  {n:'Sei',c:'Fisk'},{n:'Tunfisk i vann',c:'Fisk'},{n:'Tunfisk i olje',c:'Fisk'},
+  {n:'Makrell i tomat',c:'Fisk'},{n:'Reker',c:'Fisk'},{n:'Scampi',c:'Fisk'},
+  {n:'Krabbe',c:'Fisk'},{n:'Klippfisk',c:'Fisk'},{n:'Sardiner',c:'Fisk'},
+  // Grønnsaker
+  {n:'Agurk',c:'Grønnsaker'},{n:'Tomat',c:'Grønnsaker'},{n:'Cherrytomater',c:'Grønnsaker'},
+  {n:'Paprika (rød)',c:'Grønnsaker'},{n:'Paprika (gul)',c:'Grønnsaker'},{n:'Paprika (grønn)',c:'Grønnsaker'},
+  {n:'Rød løk',c:'Grønnsaker'},{n:'Gul løk',c:'Grønnsaker'},{n:'Vårløk',c:'Grønnsaker'},
+  {n:'Hvitløk',c:'Grønnsaker'},{n:'Sjarlottløk',c:'Grønnsaker'},{n:'Brokkoli',c:'Grønnsaker'},
+  {n:'Blomkål',c:'Grønnsaker'},{n:'Spinat',c:'Grønnsaker'},{n:'Ruccola',c:'Grønnsaker'},
+  {n:'Salat (isberg)',c:'Grønnsaker'},{n:'Salat (romaine)',c:'Grønnsaker'},
+  {n:'Gulrot',c:'Grønnsaker'},{n:'Selleri',c:'Grønnsaker'},{n:'Squash',c:'Grønnsaker'},
+  {n:'Aubergine',c:'Grønnsaker'},{n:'Søtpotet',c:'Grønnsaker'},{n:'Potet',c:'Grønnsaker'},
+  {n:'Mais',c:'Grønnsaker'},{n:'Erter',c:'Grønnsaker'},{n:'Bønner (grønne)',c:'Grønnsaker'},
+  {n:'Asparges',c:'Grønnsaker'},{n:'Sopp (sjampinjong)',c:'Grønnsaker'},{n:'Sopp (shiitake)',c:'Grønnsaker'},
+  {n:'Reddiker',c:'Grønnsaker'},{n:'Kål',c:'Grønnsaker'},{n:'Rødkål',c:'Grønnsaker'},
+  {n:'Purre',c:'Grønnsaker'},{n:'Ingefær',c:'Grønnsaker'},{n:'Chili',c:'Grønnsaker'},
+  {n:'Mais (hermetisk)',c:'Grønnsaker'},{n:'Pickles',c:'Grønnsaker'},{n:'Ruccola',c:'Grønnsaker'},
+  // Frukt
+  {n:'Eple',c:'Frukt'},{n:'Banan',c:'Frukt'},{n:'Appelsin',c:'Frukt'},{n:'Sitron',c:'Frukt'},
+  {n:'Lime',c:'Frukt'},{n:'Mango',c:'Frukt'},{n:'Avokado',c:'Frukt'},{n:'Jordbær',c:'Frukt'},
+  {n:'Bringebær',c:'Frukt'},{n:'Blåbær',c:'Frukt'},{n:'Druer',c:'Frukt'},{n:'Pære',c:'Frukt'},
+  {n:'Ananas',c:'Frukt'},{n:'Vannmelon',c:'Frukt'},{n:'Fersken',c:'Frukt'},
+  {n:'Bær (frosne, blandet)',c:'Frukt'},{n:'Kirsebær',c:'Frukt'},
+  // Meieri og egg
+  {n:'Egg',c:'Meieri/Egg'},{n:'Melk (lettmelk)',c:'Meieri/Egg'},{n:'Melk (helmelk)',c:'Meieri/Egg'},
+  {n:'Fløte',c:'Meieri/Egg'},{n:'Rømme',c:'Meieri/Egg'},{n:'Crème fraîche',c:'Meieri/Egg'},
+  {n:'Smør',c:'Meieri/Egg'},{n:'Margarin',c:'Meieri/Egg'},{n:'Ost (gulost)',c:'Meieri/Egg'},
+  {n:'Ost (parmesan)',c:'Meieri/Egg'},{n:'Fetaost',c:'Meieri/Egg'},{n:'Mozzarella',c:'Meieri/Egg'},
+  {n:'Brie',c:'Meieri/Egg'},{n:'Kremost',c:'Meieri/Egg'},{n:'Cottage cheese',c:'Meieri/Egg'},
+  {n:'Gresk yoghurt',c:'Meieri/Egg'},{n:'Yoghurt (naturell)',c:'Meieri/Egg'},
+  {n:'Vanilje yoghurt',c:'Meieri/Egg'},{n:'Kesam',c:'Meieri/Egg'},{n:'Kvarg',c:'Meieri/Egg'},
+  // Korn og brød
+  {n:'Ris (hvit)',c:'Korn/Brød'},{n:'Ris (fullkorn)',c:'Korn/Brød'},{n:'Pasta',c:'Korn/Brød'},
+  {n:'Pastaskruer',c:'Korn/Brød'},{n:'Spaghetti',c:'Korn/Brød'},{n:'Penne',c:'Korn/Brød'},
+  {n:'Havregryn',c:'Korn/Brød'},{n:'Müsli',c:'Korn/Brød'},{n:'Granola',c:'Korn/Brød'},
+  {n:'Brød (grovt)',c:'Korn/Brød'},{n:'Brød (loff)',c:'Korn/Brød'},{n:'Knekkebrød',c:'Korn/Brød'},
+  {n:'Potetlefse',c:'Korn/Brød'},{n:'Tortilla (hvete)',c:'Korn/Brød'},{n:'Tacoskjell',c:'Korn/Brød'},
+  {n:'Rispaper',c:'Korn/Brød'},{n:'Quinoa',c:'Korn/Brød'},{n:'Couscous',c:'Korn/Brød'},
+  {n:'Mel (hvete)',c:'Korn/Brød'},{n:'Mel (fullkorn)',c:'Korn/Brød'},{n:'Semolina',c:'Korn/Brød'},
+  // Hermetikk og tørrvarer
+  {n:'Kikerter (hermetisk)',c:'Tørrvarer'},{n:'Linser',c:'Tørrvarer'},
+  {n:'Bønner (kidney)',c:'Tørrvarer'},{n:'Bønner (hvite)',c:'Tørrvarer'},
+  {n:'Edamame (frosne)',c:'Tørrvarer'},{n:'Tomatpuré',c:'Tørrvarer'},
+  {n:'Hermetiske tomater',c:'Tørrvarer'},{n:'Kokosnøttmelk',c:'Tørrvarer'},
+  {n:'Chiafrø',c:'Tørrvarer'},{n:'Linfrø',c:'Tørrvarer'},{n:'Sesamfrø',c:'Tørrvarer'},
+  {n:'Solsikkekjerner',c:'Tørrvarer'},{n:'Valnøtter',c:'Tørrvarer'},{n:'Mandler',c:'Tørrvarer'},
+  {n:'Cashewnøtter',c:'Tørrvarer'},{n:'Peanøtter',c:'Tørrvarer'},{n:'Mandelsmør',c:'Tørrvarer'},
+  {n:'Peanøttsmør',c:'Tørrvarer'},{n:'Rosiner',c:'Tørrvarer'},{n:'Dadler',c:'Tørrvarer'},
+  // Sauser og krydder
+  {n:'Soyasaus',c:'Saus/Krydder'},{n:'Teriyakisaus',c:'Saus/Krydder'},{n:'Fiskesaus',c:'Saus/Krydder'},
+  {n:'Srirachasaus',c:'Saus/Krydder'},{n:'Chillisaus',c:'Saus/Krydder'},{n:'Ketsjup',c:'Saus/Krydder'},
+  {n:'Majones',c:'Saus/Krydder'},{n:'Sennep (grov)',c:'Saus/Krydder'},{n:'Sennep (dijion)',c:'Saus/Krydder'},
+  {n:'Balsamicoeddik',c:'Saus/Krydder'},{n:'Olivenolje',c:'Saus/Krydder'},{n:'Sesamolje',c:'Saus/Krydder'},
+  {n:'Kokosolje',c:'Saus/Krydder'},{n:'Honning',c:'Saus/Krydder'},{n:'Ahornssirup',c:'Saus/Krydder'},
+  {n:'Salsa',c:'Saus/Krydder'},{n:'Peanøttsaus',c:'Saus/Krydder'},{n:'Béarnesaus',c:'Saus/Krydder'},
+  {n:'Chillimayo',c:'Saus/Krydder'},{n:'Hvitløksdressing',c:'Saus/Krydder'},
+  {n:'Salt',c:'Saus/Krydder'},{n:'Pepper',c:'Saus/Krydder'},{n:'Paprikapulver',c:'Saus/Krydder'},
+  {n:'Spisskummen',c:'Saus/Krydder'},{n:'Kanel',c:'Saus/Krydder'},{n:'Kardemomme',c:'Saus/Krydder'},
+  {n:'Oregano',c:'Saus/Krydder'},{n:'Basilikum',c:'Saus/Krydder'},{n:'Timian',c:'Saus/Krydder'},
+  {n:'Rosmarin',c:'Saus/Krydder'},{n:'Ingefærpulver',c:'Saus/Krydder'},{n:'Gurkemeie',c:'Saus/Krydder'},
+  {n:'Chilipulver',c:'Saus/Krydder'},{n:'Karri',c:'Saus/Krydder'},{n:'Vaniljesukker',c:'Saus/Krydder'},
+  {n:'Bakepulver',c:'Saus/Krydder'},{n:'Natron',c:'Saus/Krydder'},
+  // Bakst
+  {n:'Sukker',c:'Bakst'},{n:'Melis',c:'Bakst'},{n:'Brunt sukker',c:'Bakst'},
+  {n:'Sjokolade (mørk)',c:'Bakst'},{n:'Sjokolade (melk)',c:'Bakst'},{n:'Kakao',c:'Bakst'},
+  {n:'Vanilje (ekstrakt)',c:'Bakst'},{n:'Gjær',c:'Bakst'},{n:'Maisstivelse',c:'Bakst'},
+  {n:'Havsalt',c:'Bakst'},{n:'Kokos (revet)',c:'Bakst'},{n:'Mandelbaking',c:'Bakst'},
+  // Drikke/annet
+  {n:'Buljong (kylling)',c:'Annet'},{n:'Buljong (storfe)',c:'Annet'},{n:'Buljong (grønnsak)',c:'Annet'},
+  {n:'Kraft (kylling)',c:'Annet'},{n:'Sitronjuice',c:'Annet'},{n:'Limejuice',c:'Annet'},
+  {n:'Appelsinjuice',c:'Annet'},{n:'Kaffe (instant)',c:'Annet'},{n:'Plantemelk',c:'Annet'},
+];
+
+let activeDropdownIdx = -1;
+
+function showIngDropdown(inputId, dropdownId) {
+  const q = document.getElementById(inputId).value.trim().toLowerCase();
+  const dd = document.getElementById(dropdownId);
+  activeDropdownIdx = -1;
+  if(!q || q.length < 1) { dd.style.display='none'; return; }
+  const matches = INGREDIENTS.filter(i => i.n.toLowerCase().includes(q)).slice(0, 8);
+  if(!matches.length) {
+    dd.innerHTML = `<div class="ing-dropdown-empty">Ikke funnet — legg til manuelt</div>`;
+    dd.style.display='block';
+    return;
+  }
+  dd.innerHTML = matches.map((item,idx) =>
+    `<div class="ing-dropdown-item" data-idx="${idx}" data-name="${item.n}"
+      onmousedown="selectIngredient(event,'${inputId}','${dropdownId}')">
+      <span>${item.n}</span><span class="ing-cat">${item.c}</span>
+    </div>`).join('');
+  dd.style.display='block';
+}
+
+function selectIngredient(e, inputId, dropdownId) {
+  e.preventDefault();
+  const name = e.currentTarget.dataset.name;
+  document.getElementById(inputId).value = name;
+  document.getElementById(dropdownId).style.display='none';
+}
+
+function handleIngKey(e, inputId, dropdownId, addFn) {
+  const dd = document.getElementById(dropdownId);
+  const items = dd.querySelectorAll('.ing-dropdown-item');
+  if(e.key==='ArrowDown') {
+    e.preventDefault();
+    activeDropdownIdx = Math.min(activeDropdownIdx+1, items.length-1);
+    items.forEach((el,i) => el.classList.toggle('selected', i===activeDropdownIdx));
+    if(items[activeDropdownIdx]) document.getElementById(inputId).value = items[activeDropdownIdx].dataset.name;
+  } else if(e.key==='ArrowUp') {
+    e.preventDefault();
+    activeDropdownIdx = Math.max(activeDropdownIdx-1, 0);
+    items.forEach((el,i) => el.classList.toggle('selected', i===activeDropdownIdx));
+    if(items[activeDropdownIdx]) document.getElementById(inputId).value = items[activeDropdownIdx].dataset.name;
+  } else if(e.key==='Enter') {
+    e.preventDefault();
+    dd.style.display='none';
+    addFn();
+  } else if(e.key==='Escape') {
+    dd.style.display='none';
+  }
+}
+
+document.addEventListener('click', e => {
+  ['eIngDropdown','fIngDropdown'].forEach(id => {
+    const el = document.getElementById(id);
+    if(el && !el.contains(e.target)) el.style.display='none';
+  });
+});
+
+
+let customIngredients = [];
+
+
+function addCustomIngredient() {
+  const name = (document.getElementById('customIngInput').value||'').trim();
+  const cat = (document.getElementById('customIngCat')||{value:'Annet'}).value;
+  if(!name) return;
+  if(INGREDIENTS.some(i=>i.n.toLowerCase()===name.toLowerCase()) ||
+     customIngredients.some(i=>i.n.toLowerCase()===name.toLowerCase())) {
+    alert('Denne ingrediensen finnes allerede i listen');
+    return;
+  }
+  customIngredients.push({n:name, c:cat, custom:true});
+  saveAll();
+  document.getElementById('customIngInput').value='';
+  renderCustomIngList();
+  renderCustomIngListPage();
+}
+
+function removeCustomIngredient(idx) {
+  customIngredients.splice(idx,1);
+  saveAll();
+  renderCustomIngList();
+  renderCustomIngListPage();
+}
+
+function renderCustomIngList() {
+  const el = document.getElementById('customIngList');
+  if(!el) return;
+  if(!customIngredients.length) {
+    el.innerHTML = '<div style="font-size:13px;color:var(--muted);padding:8px 0">Ingen egne ingredienser lagt til ennå.</div>';
+    return;
+  }
+  el.innerHTML = customIngredients.map((ing,i)=>`
+    <div class="ing-row">
+      <span>${ing.n}</span>
+      <span style="font-size:10px;color:var(--muted);margin-right:8px">${ing.c}</span>
+      <button class="ing-remove" onclick="removeCustomIngredient(${i})" title="Fjern">&#x2715;</button>
+    </div>`).join('');
+}
+
+function renderCustomIngListPage() {
+  const el = document.getElementById('customIngListPage');
+  if(!el) return;
+  if(!customIngredients.length) {
+    el.innerHTML = '<div style="font-size:13px;color:var(--muted);padding:12px 0">Ingen egne ingredienser lagt til ennå. Legg til den første ovenfor!</div>';
+    return;
+  }
+  // Group by category
+  const byCat = {};
+  customIngredients.forEach((ing,i) => {
+    if(!byCat[ing.c]) byCat[ing.c]=[];
+    byCat[ing.c].push({...ing, idx:i});
+  });
+  el.innerHTML = Object.entries(byCat).map(([cat, items]) => `
+    <div style="margin-bottom:1rem">
+      <div style="font-size:10px;text-transform:uppercase;letter-spacing:.08em;color:var(--muted);font-weight:500;margin-bottom:6px">${cat}</div>
+      <div style="display:flex;flex-direction:column;gap:5px">
+        ${items.map(ing=>`
+          <div class="ing-row">
+            <span style="flex:1">${ing.n} <span style="color:var(--accent);font-size:11px">★</span></span>
+            <button class="ing-remove" onclick="removeCustomIngredient(${ing.idx});renderCustomIngListPage()" title="Fjern">&#x2715;</button>
+          </div>`).join('')}
+      </div>
+    </div>`).join('');
+}
+
+// Override showIngDropdown to also search customIngredients
+const _origShowIngDropdown = showIngDropdown;
+function showIngDropdown(inputId, dropdownId) {
+  const q = document.getElementById(inputId).value.trim().toLowerCase();
+  const dd = document.getElementById(dropdownId);
+  activeDropdownIdx = -1;
+  if(!q || q.length < 1) { dd.style.display='none'; return; }
+  const allIng = [...INGREDIENTS, ...customIngredients];
+  const matches = allIng.filter(i => i.n.toLowerCase().includes(q)).slice(0, 10);
+  if(!matches.length) {
+    dd.innerHTML = `<div class="ing-dropdown-empty">Ikke funnet — skriv og trykk "+ Legg til"</div>`;
+    dd.style.display='block';
+    return;
+  }
+  dd.innerHTML = matches.map((item,idx) =>
+    `<div class="ing-dropdown-item" data-idx="${idx}" data-name="${item.n}"
+      onmousedown="selectIngredient(event,'${inputId}','${dropdownId}')">
+      <span>${item.n}</span><span class="ing-cat">${item.c}${item.custom?' ★':''}</span>
+    </div>`).join('');
+  dd.style.display='block';
+}
+
+function initApp() {
+  loadAll();
+  renderRecipes();
+  renderWeek();
+  renderShopping();
+  renderCustomIngListPage();
+}
+
+// Vent på Firebase — hvis ikke klar innen 3 sek, start med lokale data
+if(window._firebaseReady) {
+  initApp();
+} else {
+  const timeout = setTimeout(() => {
+    console.warn('Firebase tok for lang tid, starter med lokale data');
+    initApp();
+  }, 3000);
+  window.addEventListener('firebase-ready', () => {
+    clearTimeout(timeout);
+    initApp();
+  });
+}
+</script>
+
+<!-- Edit recipe modal -->
+<div class="modal-overlay" id="editModal">
+  <div class="modal">
+    <h2>Rediger oppskrift</h2>
+    <input type="hidden" id="eId">
+    <div class="form-group"><label>Navn</label><input type="text" id="eName" placeholder="Navn på rett"></div>
+    <div class="form-group"><label>Kategori</label>
+      <select id="eCat">
+        <option value="frokost">Frokost</option>
+        <option value="middag">Middag</option>
+        <option value="snack">Snack</option>
+        <option value="bakst">Bakst</option>
+      </select>
+    </div>
+    <div class="form-group">
+      <label>Ingredienser</label>
+      <div id="eIngredientList" style="display:flex;flex-direction:column;gap:6px;margin-bottom:8px"></div>
+      <div style="display:flex;gap:8px;align-items:flex-start">
+        <div class="ing-autocomplete">
+          <input type="text" id="eIngredientInput" placeholder="Skriv ingrediens..." autocomplete="off"
+            oninput="showIngDropdown('eIngredientInput','eIngDropdown')"
+            onkeydown="handleIngKey(event,'eIngredientInput','eIngDropdown',addEditIngredient)"
+            style="width:100%">
+          <div class="ing-dropdown" id="eIngDropdown" style="display:none"></div>
+        </div>
+        <button type="button" onclick="addEditIngredient()" style="background:var(--accent);color:white;border:none;border-radius:8px;padding:8px 14px;font-family:'DM Sans',sans-serif;font-size:13px;cursor:pointer;white-space:nowrap;flex-shrink:0">+ Legg til</button>
+      </div>
+    </div>
+    <div class="form-group"><label>Næringsverdier per porsjon</label>
+      <div class="macro-inputs">
+        <input type="number" id="eKcal" placeholder="kcal">
+        <input type="number" id="eProt" placeholder="protein g">
+        <input type="number" id="eKarbo" placeholder="karbo g">
+        <input type="number" id="eFett" placeholder="fett g">
+      </div>
+    </div>
+    <div class="form-group"><label>Tags</label><input type="text" id="eTags" placeholder="f.eks. rask, protein (kommaseparert)"></div>
+    <div class="modal-footer" style="justify-content:space-between">
+      <button class="btn-cancel" style="color:#c0392b;border-color:#c0392b" onclick="deleteRecipe()">Slett oppskrift</button>
+      <div style="display:flex;gap:8px">
+        <button class="btn-cancel" onclick="closeEditModal()">Avbryt</button>
+        <button class="btn-save" onclick="saveEditRecipe()">Lagre endringer</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Bunn-navigasjon (mobil) -->
+<nav class="bottom-nav">
+  <button class="bottom-nav-item active" onclick="showPage('recipes',this)">
+    <svg width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M9 5H7a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2h-2"/><rect x="9" y="3" width="6" height="4" rx="1"/></svg>
+    Oppskrifter
+  </button>
+  <button class="bottom-nav-item" onclick="showPage('week',this)">
+    <svg width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/></svg>
+    Ukeplan
+  </button>
+  <button class="bottom-nav-item" onclick="showPage('shopping',this)">
+    <svg width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M6 2 3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4z"/><line x1="3" y1="6" x2="21" y2="6"/><path d="M16 10a4 4 0 0 1-8 0"/></svg>
+    Handleliste
+  </button>
+  <button class="bottom-nav-item" onclick="showPage('ingredients',this)">
+    <svg width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><line x1="3" y1="6" x2="3.01" y2="6"/><line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/></svg>
+    Ingredienser
+  </button>
+</nav>
+
+<!-- Manage custom ingredients modal -->
+<div class="modal-overlay" id="manageIngModal">
+  <div class="modal">
+    <h2>Administrer ingrediensliste</h2>
+    <p style="font-size:13px;color:var(--muted);margin-bottom:1rem">Legg til ingredienser som mangler i listen. De vil dukke opp som forslag når du legger til ingredienser i oppskrifter.</p>
+    <div style="display:flex;gap:8px;margin-bottom:1rem">
+      <input type="text" id="customIngInput" placeholder="F.eks. Kardemommebrød..." style="flex:1"
+        onkeydown="if(event.key==='Enter'){event.preventDefault();addCustomIngredient()}">
+      <select id="customIngCat" style="width:140px">
+        <option value="Meieri/Egg">Meieri/Egg</option>
+        <option value="Kjøtt">Kjøtt</option>
+        <option value="Fisk">Fisk</option>
+        <option value="Grønnsaker">Grønnsaker</option>
+        <option value="Frukt">Frukt</option>
+        <option value="Korn/Brød">Korn/Brød</option>
+        <option value="Tørrvarer">Tørrvarer</option>
+        <option value="Saus/Krydder">Saus/Krydder</option>
+        <option value="Bakst">Bakst</option>
+        <option value="Pålegg">Pålegg</option>
+        <option value="Annet">Annet</option>
+      </select>
+      <button onclick="addCustomIngredient()" style="background:var(--accent);color:white;border:none;border-radius:8px;padding:8px 14px;font-family:'DM Sans',sans-serif;font-size:13px;cursor:pointer;white-space:nowrap">+ Legg til</button>
+    </div>
+    <div id="customIngList" style="display:flex;flex-direction:column;gap:5px;max-height:300px;overflow-y:auto"></div>
+    <div class="modal-footer">
+      <button class="btn-cancel" onclick="document.getElementById('manageIngModal').classList.remove('open')">Lukk</button>
+    </div>
+  </div>
+</div>
+</body>
+</html>
