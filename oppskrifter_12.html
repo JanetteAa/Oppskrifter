@@ -39,6 +39,7 @@
         if (d.haveItems) window._haveItems = d.haveItems;
         if (d.notes) window._notes = d.notes;
         if (d.customIngredients) window._customIngredients = d.customIngredients;
+        if (d.images) window._images = d.images;
       }
     } catch(e) { console.warn('Firebase last feilet', e); }
   }
@@ -688,6 +689,7 @@ function saveAll() {
       haveItems,
       notes,
       customIngredients,
+      images,
     }).catch(e => console.warn('Firebase lagring feilet', e));
   }
   // Fallback: localStorage
@@ -725,6 +727,8 @@ function loadAll() {
     if(n) Object.assign(notes, n);
     const ci = fromFirebase && window._customIngredients ? window._customIngredients : JSON.parse(localStorage.getItem('opp_custom_ing') || 'null');
     if(ci) customIngredients = ci;
+    const img = fromFirebase && window._images ? window._images : null;
+    if(img) Object.assign(images, img);
   } catch(e){}
 }
 
@@ -859,16 +863,28 @@ function saveNote() { if(activeId) { notes[activeId]=document.getElementById('dN
 function handleImg(e) {
   const file = e.target.files[0];
   if(!file||!activeId) return;
-  const reader = new FileReader();
-  reader.onload = ev => {
-    images[activeId] = ev.target.result;
-    document.getElementById('dImg').src=ev.target.result;
-    document.getElementById('dImg').style.display='block';
-    document.getElementById('dImgHint').style.display='none';
+  // Komprimer bildet før lagring
+  const img = new Image();
+  const url = URL.createObjectURL(file);
+  img.onload = () => {
+    const canvas = document.createElement('canvas');
+    const MAX = 800;
+    let w = img.width, h = img.height;
+    if(w > MAX) { h = Math.round(h * MAX / w); w = MAX; }
+    if(h > MAX) { w = Math.round(w * MAX / h); h = MAX; }
+    canvas.width = w; canvas.height = h;
+    canvas.getContext('2d').drawImage(img, 0, 0, w, h);
+    const data = canvas.toDataURL('image/jpeg', 0.75);
+    images[activeId] = data;
+    document.getElementById('dImg').src = data;
+    document.getElementById('dImg').style.display = 'block';
+    document.getElementById('dImgHint').style.display = 'none';
+    URL.revokeObjectURL(url);
+    saveAll(); // lagre bildet til Firebase
     renderRecipes();
   };
-  reader.readAsDataURL(file);
-  e.target.value='';
+  img.src = url;
+  e.target.value = '';
 }
 
 function openAddModal() { document.getElementById('addModal').classList.add('open'); }
